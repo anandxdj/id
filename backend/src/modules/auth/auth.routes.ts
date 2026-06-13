@@ -15,4 +15,9 @@ router.post('/refresh-token', asyncHandler(controller.refreshToken));
 router.post('/logout', authenticate, asyncHandler(controller.logout));
 router.get('/me', authenticate, asyncHandler(controller.getMe));
 
+// ── Social connectors (Google, GitHub, …) ──────────────────────────────────────
+router.get('/connectors', asyncHandler(controller.listConnectors));
+router.get('/oauth/:provider', authLimiter, asyncHandler(controller.oauthStart));
+router.get('/oauth/:provider/callback', asyncHandler(controller.oauthCallback));
+
 export default router;

@@ -31,7 +31,9 @@ const toPublic = (u: IUser): PublicUser => ({
 
 const sessionKey = (userId: string, sid: string) => `session:${userId}:${sid}`;
 
-const issueSession = async (user: IUser) => {
+/** Create a whitelisted session for a user and return the token pair. Shared by
+ *  password login and every social connector callback. */
+export const createSession = async (user: IUser) => {
   const sid = randomBase64Url(24);
   await redis.set(sessionKey(user._id.toString(), sid), '1', 'EX', REFRESH_TTL_SECONDS);
   const base = { id: user._id.toString(), sid, role: user.role };
@@ -40,6 +42,8 @@ const issueSession = async (user: IUser) => {
     refreshToken: generateRefreshToken({ id: base.id, sid }),
   };
 };
+
+export { toPublic };
 
 export const register = async (input: { name: string; email: string; password: string }) => {
   const email = input.email.toLowerCase().trim();
@@ -57,7 +61,7 @@ export const login = async (input: { email: string; password: string }) => {
   const ok = await user.comparePassword(input.password);
   if (!ok) throw ApiError.unauthorized('Invalid email or password');
 
-  const tokens = await issueSession(user);
+  const tokens = await createSession(user);
   return { user: toPublic(user), ...tokens };
 };
 

@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { resumeOAuth } from '@/lib/oauth-resume';
+import { getConnectors, connectorStartUrl, type Connector } from '@/features/auth/services/connectorsApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +20,14 @@ export function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [connectors, setConnectors] = useState<Connector[]>([]);
+
+  useEffect(() => {
+    // Surface a backend-reported social-login failure (?error=…) and load connectors.
+    const err = searchParams.get('error');
+    if (err) setError(`Sign-in failed (${err}).`);
+    getConnectors().then(setConnectors).catch(() => setConnectors([]));
+  }, [searchParams]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,6 +80,25 @@ export function LoginForm() {
           {submitting ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
+
+      {connectors.length > 0 && (
+        <>
+          <div className="my-6 flex items-center gap-3 text-xs text-white/40">
+            <span className="h-px flex-1 bg-white/10" />
+            or continue with
+            <span className="h-px flex-1 bg-white/10" />
+          </div>
+          <div className="space-y-2">
+            {connectors.map((c) => (
+              <a key={c.provider} href={connectorStartUrl(c.provider, returnTo)} className="block">
+                <Button type="button" variant="secondary" className="w-full">
+                  Continue with {c.displayName}
+                </Button>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
     </Card>
   );
 }

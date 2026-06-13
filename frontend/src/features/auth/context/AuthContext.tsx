@@ -10,6 +10,8 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
   register: (name: string, email: string, password: string) => Promise<void>;
+  /** Adopt a session from a bridged access token (social-login /callback). */
+  setSession: (accessToken: string) => Promise<User>;
   logout: () => Promise<void>;
 }
 
@@ -46,6 +48,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await authApi.registerRequest(name, email, password);
   }
 
+  async function setSession(accessToken: string) {
+    tokenStore.set(accessToken);
+    const me = await authApi.meRequest();
+    setUser(me);
+    return me;
+  }
+
   async function logout() {
     try {
       await authApi.logoutRequest();
@@ -57,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, setSession, logout }}>
       {children}
     </AuthContext.Provider>
   );

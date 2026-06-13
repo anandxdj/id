@@ -6,7 +6,7 @@ export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
   name: string;
   email: string;
-  password: string;
+  password?: string; // optional — social-only users authenticate via a linked Identity
   role: 'user' | 'admin' | 'superadmin';
   isVerified: boolean;
   profilePictureUrl: string;
@@ -26,7 +26,7 @@ const userSchema = new mongoose.Schema<IUser>(
   {
     name: { type: String, required: true, trim: true, minlength: 2, maxlength: 50 },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    password: { type: String, required: true, minlength: 8, select: false },
+    password: { type: String, minlength: 8, select: false },
     role: { type: String, enum: ['user', 'admin', 'superadmin'], default: 'user' },
     isVerified: { type: Boolean, default: false },
     profilePictureUrl: { type: String, trim: true, default: '' },
@@ -42,11 +42,12 @@ const userSchema = new mongoose.Schema<IUser>(
 );
 
 userSchema.pre('save', async function () {
-  if (!this.isModified('password')) return;
+  if (!this.isModified('password') || !this.password) return;
   this.password = await bcrypt.hash(this.password, 12);
 });
 
 userSchema.methods.comparePassword = async function (candidate: string): Promise<boolean> {
+  if (!this.password) return false; // social-only account — no password set
   return bcrypt.compare(candidate, this.password);
 };
 

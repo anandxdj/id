@@ -16,7 +16,38 @@ Relying-party app ──GET /oauth/authorize──▶ id backend ──302──
 ```
 
 Auth codes, opaque access tokens, auth requests, and first-party sessions all live in **Redis**.
-Users and OAuth clients are provisioned via seed scripts (internal-only — no public registration).
+OAuth clients (the relying-party apps) are provisioned via seed scripts. End users sign in with
+**email/password or any enabled social connector** (Google, GitHub, …) — all landing in one user DB.
+
+## Social login connectors (adapter pattern)
+
+`id` is the central identity store for all your projects. Login methods are pluggable connectors
+(`backend/src/modules/auth/connectors/`) implementing one `OAuthConnector` interface. A connector
+is **enabled automatically when its credentials are present**; `AUTH_CONNECTORS` optionally narrows
+to a subset. This is the per-deployment toggle — no code change to turn a provider on/off.
+
+| Connector | Enable by setting |
+|-----------|-------------------|
+| Google | `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` |
+| GitHub | `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` |
+| Email/password | always on (`credentials`) |
+
+Redirect/callback URLs to register with the provider:
+- Google: `http://localhost:4000/api/auth/oauth/google/callback`
+- GitHub: `http://localhost:4000/api/auth/oauth/github/callback`
+
+**User model:** one canonical `User` (email-unique) with many linked `Identity` records
+(`provider` + `providerAccountId`). A social login links to an existing user **only when the
+provider asserts the email is verified** — otherwise it's a new account (account-takeover guard).
+Add a new provider by dropping a `*.connector.ts` into `connectors/` and registering it.
+
+Connector endpoints:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/auth/connectors` | List enabled providers (UI renders a button per entry) |
+| `GET /api/auth/oauth/:provider` | Start social login (→ provider consent) |
+| `GET /api/auth/oauth/:provider/callback` | Finish → find/create user → session → bridge to frontend |
 
 ## Prerequisites
 
