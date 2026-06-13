@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import { errorHandler } from './common/middleware/errorHandler';
 import { apiLimiter } from './common/middleware/rateLimit';
 import { ApiError } from './common/utils/ApiError';
+import authRoutes from './modules/auth/auth.routes';
 
 export function createApp() {
   const app = express();
@@ -32,8 +33,10 @@ export function createApp() {
     });
   });
 
-  // ── OIDC + API routes mounted in later units ────────────────────────────────
+  // ── API + OIDC routes ───────────────────────────────────────────────────────
   app.use('/api', apiLimiter);
+  app.use('/api/auth', authRoutes);
+  // (OIDC /oauth + /api/oauth + discovery mounted in U5)
 
   // Final fallthrough — any unmatched route is a 404 (version-agnostic, no path pattern).
   app.use((req, _res, next) => {
