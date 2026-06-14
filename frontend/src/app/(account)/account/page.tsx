@@ -1,37 +1,34 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { Button } from '@/components/ui/button';
-import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 
-export default function AccountPage() {
-  const { user, loading, logout } = useAuth();
-  const router = useRouter();
+const cards = [
+  { href: '/account/apps', title: 'Connected apps', desc: 'Review and revoke apps you’ve granted access to.' },
+  { href: '/account/security', title: 'Security', desc: 'See active sessions and sign out of other devices.' },
+  { href: '/account/profile', title: 'Profile', desc: 'Update your name and details.' },
+];
 
-  useEffect(() => {
-    if (!loading && !user) router.replace('/login');
-  }, [loading, user, router]);
-
-  if (loading || !user) {
-    return <main className="flex min-h-screen items-center justify-center text-white/50">Loading…</main>;
-  }
-
+export default function AccountOverviewPage() {
+  const { user } = useAuth();
   return (
-    <main className="flex min-h-screen items-center justify-center px-4">
-      <Card>
-        <CardTitle>Signed in</CardTitle>
-        <CardDescription>You are authenticated with id.</CardDescription>
-        <div className="mt-6 space-y-1 text-sm">
-          <p className="text-white">{user.name}</p>
-          <p className="text-white/60">{user.email}</p>
-          <p className="text-white/40">Role: {user.role}</p>
-        </div>
-        <Button variant="secondary" className="mt-6 w-full" onClick={() => logout().then(() => router.push('/login'))}>
-          Sign out
-        </Button>
-      </Card>
-    </main>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-white">Welcome, {user?.name}</h2>
+        <p className="mt-1 text-sm text-white/50">Manage your id account and what it can access.</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {cards.map((c) => (
+          <Link
+            key={c.href}
+            href={c.href}
+            className="rounded-xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-white/25"
+          >
+            <p className="font-medium text-white">{c.title}</p>
+            <p className="mt-1 text-xs text-white/50">{c.desc}</p>
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }
