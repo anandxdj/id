@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { ApiResponse } from '../../common/utils/ApiResponse';
 import { ApiError } from '../../common/utils/ApiError';
 import * as oauthService from './oauth.service';
+import * as events from '../events/event.service';
 
 export const getConsentContext = async (req: Request, res: Response) => {
   if (!req.user) throw ApiError.unauthorized('Not authenticated');
@@ -18,5 +19,13 @@ export const postConsent = async (req: Request, res: Response) => {
     req.body?.transaction_id,
     req.body?.decision,
   );
+  if (data.granted) {
+    events.record('consent.granted', {
+      actorUserId: req.user.id,
+      actorRole: req.user.role,
+      clientId: data.client_id,
+      ...events.reqContext(req),
+    });
+  }
   ApiResponse.ok(res, data.message, { redirect_url: data.redirect_url });
 };

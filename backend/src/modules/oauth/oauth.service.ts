@@ -4,6 +4,7 @@ import { redis } from '../../common/config/redis';
 import { getOidcIssuer, signIdToken } from '../../common/utils/keys.utils';
 import { hashToken, randomBase64Url, verifyPkce } from '../../common/utils/crypto.utils';
 import * as clientService from '../oauth-client/oauth-client.service';
+import * as events from '../events/event.service';
 import User from '../auth/auth.model';
 import Consent from './consent.model';
 
@@ -289,6 +290,13 @@ export const exchangeToken = async (req: Request, res: Response): Promise<void> 
 
   const idToken = await signIdToken(idClaims);
 
+  events.record('token.issued', {
+    actorUserId: user._id.toString(),
+    clientId: client.clientId,
+    ...events.reqContext(req),
+    meta: { scope: rec.scope },
+  });
+
   res.json({
     access_token: opaque,
     id_token: idToken,
@@ -319,6 +327,13 @@ export const getUserinfo = async (req: Request, res: Response): Promise<void> =>
   if (hasScope(ctx.scope, 'profile')) {
     out.name = u.name;
   }
+
+  events.record('userinfo.access', {
+    actorUserId: ctx.userId,
+    clientId: ctx.clientId,
+    ...events.reqContext(req),
+  });
+
   res.json(out);
 };
 
@@ -364,6 +379,8 @@ export const completeConsent = async (userId: string, transactionId: string, dec
     await redis.del(`auth_req:${tid}:${userId}`);
     return {
       message: 'Application suspended',
+      granted: false,
+      client_id: ar.clientId,
       redirect_url: buildRedirectUrl(ar.redirectUri, {
         error: 'access_denied',
         error_description: 'This application has been suspended',
@@ -387,6 +404,8 @@ export const completeConsent = async (userId: string, transactionId: string, dec
   if (d === 'deny') {
     return {
       message: 'Access denied',
+      granted: false,
+      client_id: ar.clientId,
       redirect_url: buildRedirectUrl(ar.redirectUri, {
         error: 'access_denied',
         error_description: 'User denied access',
@@ -402,5 +421,10 @@ export const completeConsent = async (userId: string, transactionId: string, dec
   );
 
   const code = await issueAuthCode(userId, params);
-  return { message: 'Authorized', redirect_url: buildRedirectUrl(ar.redirectUri, { code, state: ar.state }) };
+  return {
+    message: 'Authorized',
+    granted: true,
+    client_id: ar.clientId,
+    redirect_url: buildRedirectUrl(ar.redirectUri, { code, state: ar.state }),
+  };
 };

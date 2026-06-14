@@ -3,6 +3,7 @@ import { ApiResponse } from '../../common/utils/ApiResponse';
 import { ApiError } from '../../common/utils/ApiError';
 import { getOidcIssuer } from '../../common/utils/keys.utils';
 import * as authService from './auth.service';
+import * as events from '../events/event.service';
 import { listEnabled, getEnabledConnector } from './connectors/registry';
 import { saveOAuthState, consumeOAuthState, findOrCreateFromProfile } from './social.service';
 
@@ -22,8 +23,23 @@ export const register = async (req: Request, res: Response) => {
 };
 
 export const login = async (req: Request, res: Response) => {
-  const { user, accessToken, refreshToken } = await authService.login(req.body);
+  let result;
+  try {
+    result = await authService.login(req.body);
+  } catch (err) {
+    events.record('login.fail', {
+      ...events.reqContext(req),
+      meta: { email: String(req.body?.email ?? '').toLowerCase().trim() },
+    });
+    throw err;
+  }
+  const { user, accessToken, refreshToken } = result;
   res.cookie('refreshToken', refreshToken, refreshCookieOptions());
+  events.record('login.success', {
+    actorUserId: user._id,
+    actorRole: user.role,
+    ...events.reqContext(req),
+  });
   ApiResponse.ok(res, 'Logged in', { user, accessToken });
 };
 
@@ -34,7 +50,14 @@ export const refreshToken = async (req: Request, res: Response) => {
 };
 
 export const logout = async (req: Request, res: Response) => {
-  if (req.user) await authService.logout(req.user.id, req.user.sessionId);
+  if (req.user) {
+    await authService.logout(req.user.id, req.user.sessionId);
+    events.record('logout', {
+      actorUserId: req.user.id,
+      actorRole: req.user.role,
+      ...events.reqContext(req),
+    });
+  }
   res.clearCookie('refreshToken', { path: '/' });
   res.clearCookie('accessToken', { path: '/' });
   ApiResponse.ok(res, 'Logged out');
@@ -93,6 +116,12 @@ export const oauthCallback = async (req: Request, res: Response) => {
     const user = await findOrCreateFromProfile(profile);
     const { accessToken, refreshToken } = await authService.createSession(user);
     res.cookie('refreshToken', refreshToken, refreshCookieOptions());
+    events.record('login.success', {
+      actorUserId: user._id.toString(),
+      actorRole: user.role,
+      ...events.reqContext(req),
+      meta: { provider },
+    });
 
     // Bridge: token + return_to ride the URL fragment (never the query) so they stay
     // out of server/access logs. The frontend /callback page consumes them.
