@@ -274,6 +274,11 @@ export const exchangeToken = async (req: Request, res: Response): Promise<void> 
     scope: rec.scope,
   };
   await redis.set(`access_token:${tokenHash}`, JSON.stringify(tokenData), 'EX', ACCESS_TOKEN_SECONDS);
+  // Index this token under (user, client) so "revoke app" can invalidate it without a SCAN.
+  // The set's TTL tracks the token lifetime; stale hashes expire with it.
+  const tokenIndexKey = `user_client_tokens:${user._id.toString()}:${client.clientId}`;
+  await redis.sadd(tokenIndexKey, tokenHash);
+  await redis.expire(tokenIndexKey, ACCESS_TOKEN_SECONDS);
 
   const now = Math.floor(Date.now() / 1000);
   const idClaims: Record<string, unknown> = {
@@ -304,6 +309,22 @@ export const exchangeToken = async (req: Request, res: Response): Promise<void> 
     expires_in: ACCESS_TOKEN_SECONDS,
     scope: rec.scope,
   });
+};
+
+/** Invalidate every outstanding access token a user holds for one client. Returns
+ *  how many were deleted. Used by "revoke app" on the user dashboard. */
+export const revokeAccessTokensForClient = async (
+  userId: string,
+  clientId: string,
+): Promise<number> => {
+  const indexKey = `user_client_tokens:${userId}:${clientId}`;
+  const hashes = await redis.smembers(indexKey);
+  let removed = 0;
+  if (hashes.length) {
+    removed = await redis.del(...hashes.map((h) => `access_token:${h}`));
+  }
+  await redis.del(indexKey);
+  return removed;
 };
 
 // ── Userinfo ───────────────────────────────────────────────────────────────
