@@ -25,7 +25,7 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   let result;
   try {
-    result = await authService.login(req.body);
+    result = await authService.login(req.body, events.reqContext(req));
   } catch (err) {
     events.record('login.fail', {
       ...events.reqContext(req),
@@ -114,7 +114,7 @@ export const oauthCallback = async (req: Request, res: Response) => {
   try {
     const profile = await connector.exchange(code, callbackUri(provider));
     const user = await findOrCreateFromProfile(profile);
-    const { accessToken, refreshToken } = await authService.createSession(user);
+    const { accessToken, refreshToken } = await authService.createSession(user, events.reqContext(req));
     res.cookie('refreshToken', refreshToken, refreshCookieOptions());
     events.record('login.success', {
       actorUserId: user._id.toString(),

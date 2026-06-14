@@ -30,7 +30,7 @@ export const record = (type: EventType, ctx: EventContext = {}): Promise<void> =
     });
 
 /** Extract ip + user-agent from a request (Express `trust proxy` resolves X-Forwarded-For). */
-export const reqContext = (req: Request): Pick<EventContext, 'ip' | 'ua'> => ({
+export const reqContext = (req: Request): { ip?: string; ua?: string } => ({
   ip: req.ip,
   ua: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'].slice(0, 400) : undefined,
 });

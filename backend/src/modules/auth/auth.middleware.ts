@@ -3,6 +3,7 @@ import { ApiError } from '../../common/utils/ApiError';
 import { asyncHandler } from '../../common/utils/asyncHandler';
 import { verifyAccessToken } from '../../common/utils/jwt.utils';
 import { redis } from '../../common/config/redis';
+import { touchSession } from './auth.service';
 import User from './auth.model';
 import type { AuthUser } from '../../types/express';
 
@@ -59,6 +60,8 @@ export const authenticate = asyncHandler(async (req: Request, res: Response, nex
   }
 
   req.user = toAuthUser(user, decoded.sid ?? null);
+  // Refresh last-seen for the sessions dashboard (throttled, never blocks the request).
+  void touchSession(decoded.id, decoded.sid).catch(() => {});
   next();
 });
 
