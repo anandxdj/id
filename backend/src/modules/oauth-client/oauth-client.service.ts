@@ -58,6 +58,53 @@ export const verifyClientSecret = async (
   return bcrypt.compare(plainSecret, client.clientSecretHash);
 };
 
+/** List all registered clients, newest first (admin view). Never includes secrets. */
+export const list = async (): Promise<IOAuthClient[]> =>
+  OAuthClient.find().sort({ createdAt: -1 }).lean<IOAuthClient[]>();
+
+export interface UpdateClientInput {
+  clientName?: string;
+  redirectUris?: string[];
+  description?: string;
+  logoUrl?: string;
+}
+
+/** Patch a client's editable fields (admin). Returns the updated doc or null. */
+export const update = async (
+  clientId: string,
+  input: UpdateClientInput,
+): Promise<IOAuthClient | null> => {
+  const set: Record<string, unknown> = {};
+  if (input.clientName !== undefined) set.clientName = input.clientName.trim();
+  if (input.redirectUris !== undefined) set.redirectUris = input.redirectUris;
+  if (input.description !== undefined) set.description = String(input.description).trim().slice(0, 2000);
+  if (input.logoUrl !== undefined) set.logoUrl = String(input.logoUrl).trim().slice(0, 2048);
+  return OAuthClient.findOneAndUpdate({ clientId }, { $set: set }, { new: true, runValidators: true }).lean<IOAuthClient>();
+};
+
+/** Issue a fresh secret for a client, invalidating the old one. Returns it once. */
+export const rotateSecret = async (
+  clientId: string,
+): Promise<{ clientSecret: string } | null> => {
+  const rawSecret = makeClientSecret();
+  const clientSecretHash = await bcrypt.hash(rawSecret, 12);
+  const updated = await OAuthClient.findOneAndUpdate({ clientId }, { $set: { clientSecretHash } });
+  if (!updated) return null;
+  return { clientSecret: rawSecret };
+};
+
+/** Suspend or unsuspend a client. A suspended client is rejected at authorize/token. */
+export const setSuspended = async (
+  clientId: string,
+  suspended: boolean,
+  reason?: string,
+): Promise<IOAuthClient | null> => {
+  const update = suspended
+    ? { $set: { suspended: true, suspendedReason: reason ?? '', suspendedAt: new Date() } }
+    : { $set: { suspended: false }, $unset: { suspendedReason: '', suspendedAt: '' } };
+  return OAuthClient.findOneAndUpdate({ clientId }, update, { new: true }).lean<IOAuthClient>();
+};
+
 /** Idempotent upsert used by the seed script — keeps a fixed clientId, (re)issues a secret. */
 export const upsertSeedClient = async (
   clientId: string,

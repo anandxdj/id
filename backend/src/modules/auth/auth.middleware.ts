@@ -58,6 +58,11 @@ export const authenticate = asyncHandler(async (req: Request, res: Response, nex
     res.clearCookie('refreshToken', { path: '/' });
     throw ApiError.unauthorized('User no longer exists');
   }
+  if (user.disabled) {
+    res.clearCookie('accessToken', { path: '/' });
+    res.clearCookie('refreshToken', { path: '/' });
+    throw ApiError.forbidden('This account has been disabled');
+  }
 
   req.user = toAuthUser(user, decoded.sid ?? null);
   // Refresh last-seen for the sessions dashboard (throttled, never blocks the request).
@@ -74,7 +79,7 @@ export const tryAttachUser = asyncHandler(async (req: Request, _res: Response, n
     const whitelisted = await redis.get(sessionKey(decoded.id, decoded.sid));
     if (whitelisted) {
       const user = await User.findById(decoded.id);
-      if (user) req.user = toAuthUser(user, decoded.sid ?? null);
+      if (user && !user.disabled) req.user = toAuthUser(user, decoded.sid ?? null);
     }
   } catch {
     // invalid or expired — treat as anonymous

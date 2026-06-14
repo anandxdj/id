@@ -193,6 +193,8 @@ export const login = async (
   const ok = await user.comparePassword(input.password);
   if (!ok) throw ApiError.unauthorized('Invalid email or password');
 
+  if (user.disabled) throw ApiError.forbidden('This account has been disabled');
+
   const tokens = await createSession(user, meta);
   return { user: toPublic(user), ...tokens };
 };

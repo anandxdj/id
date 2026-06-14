@@ -8,6 +8,7 @@ import { apiLimiter } from './common/middleware/rateLimit';
 import { ApiError } from './common/utils/ApiError';
 import authRoutes from './modules/auth/auth.routes';
 import accountRoutes from './modules/account/account.routes';
+import adminRoutes from './modules/admin/admin.routes';
 import oauthRoutes from './modules/oauth/oauth.routes';
 import oauthApiRoutes from './modules/oauth/oauth-api.routes';
 import { getOpenIdConfiguration } from './modules/oauth/oidc-discovery.controller';
@@ -44,6 +45,7 @@ export function createApp() {
   app.use('/api', apiLimiter);
   app.use('/api/auth', authRoutes);
   app.use('/api/me', accountRoutes);
+  app.use('/api/admin', adminRoutes);
   app.use('/api/oauth', oauthApiRoutes);
   app.use('/oauth', oauthRoutes);
 

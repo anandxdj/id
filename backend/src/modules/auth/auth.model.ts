@@ -9,6 +9,9 @@ export interface IUser extends Document {
   password?: string; // optional — social-only users authenticate via a linked Identity
   role: 'user' | 'admin' | 'superadmin';
   isVerified: boolean;
+  disabled: boolean;
+  disabledReason?: string;
+  disabledAt?: Date;
   profilePictureUrl: string;
   bio: string;
   jobTitle: string;
@@ -29,6 +32,9 @@ const userSchema = new mongoose.Schema<IUser>(
     password: { type: String, minlength: 8, select: false },
     role: { type: String, enum: ['user', 'admin', 'superadmin'], default: 'user' },
     isVerified: { type: Boolean, default: false },
+    disabled: { type: Boolean, default: false, index: true },
+    disabledReason: { type: String, maxlength: 500 },
+    disabledAt: { type: Date },
     profilePictureUrl: { type: String, trim: true, default: '' },
     bio: { type: String, trim: true, maxlength: 500, default: '' },
     jobTitle: { type: String, trim: true, maxlength: 100, default: '' },
