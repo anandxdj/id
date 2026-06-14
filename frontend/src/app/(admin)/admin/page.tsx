@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import * as adminApi from '@/features/admin/services/adminApi';
 import { ActivityFeed } from '@/features/admin/components/ActivityFeed';
+import { SectionHeading } from '@/components/ui/section-heading';
+import { Panel } from '@/components/ui/panel';
 import type { AdminMetrics, ActivityEvent } from '@/types';
 
 const METRIC_CARDS: { key: keyof AdminMetrics; label: string }[] = [
@@ -28,25 +30,27 @@ export default function AdminDashboardPage() {
       .catch((e) => setError(e.message));
   }, []);
 
-  if (error) return <p className="text-sm text-red-400">{error}</p>;
-  if (!metrics) return <p className="text-sm text-white/40">Loading…</p>;
+  if (error) return <p className="font-mono text-sm text-danger">{error}</p>;
+  if (!metrics) return <p className="eyebrow text-muted-foreground">LOADING…</p>;
 
   return (
-    <div className="space-y-8">
+    <section className="space-y-8">
+      <SectionHeading
+        eyebrow="[ 00_DASHBOARD ]"
+        title="Overview"
+        description="System metrics and recent activity across all users and apps."
+      />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {METRIC_CARDS.map((c) => (
-          <div key={c.key} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-2xl font-semibold text-white">{metrics[c.key]}</p>
-            <p className="mt-1 text-xs text-white/50">{c.label}</p>
+          <div key={c.key} className="border-2 border-border bg-card p-4 shadow-brutal-sm">
+            <p className="font-heading text-3xl font-bold text-foreground">{metrics[c.key]}</p>
+            <p className="eyebrow mt-1 text-muted-foreground">{c.label}</p>
           </div>
         ))}
       </div>
-      <section>
-        <h2 className="mb-3 text-sm font-semibold text-white/80">Recent activity</h2>
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4">
-          <ActivityFeed events={activity} />
-        </div>
-      </section>
-    </div>
+      <Panel label="[ RECENT_ACTIVITY ]">
+        <ActivityFeed events={activity} />
+      </Panel>
+    </section>
   );
 }

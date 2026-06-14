@@ -13,7 +13,7 @@ const tabs = [
 export function AdminNav() {
   const path = usePathname();
   return (
-    <nav className="flex gap-1 overflow-x-auto border-b border-white/10">
+    <nav className="flex gap-1 overflow-x-auto border-b-2 border-border">
       {tabs.map((t) => {
         const active = t.exact ? path === t.href : path.startsWith(t.href);
         return (
@@ -21,8 +21,10 @@ export function AdminNav() {
             key={t.href}
             href={t.href}
             className={cn(
-              'whitespace-nowrap px-4 py-3 text-sm transition-colors',
-              active ? 'border-b-2 border-white text-white' : 'text-white/50 hover:text-white/80',
+              'whitespace-nowrap border-b-2 px-4 py-3 font-mono text-xs font-bold uppercase tracking-wide transition-colors',
+              active
+                ? '-mb-0.5 border-brand text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
             {t.label}

@@ -28,26 +28,32 @@ export function AppList() {
     }
   }
 
-  if (error) return <p className="text-sm text-red-400">{error}</p>;
-  if (!apps) return <p className="text-sm text-white/40">Loading…</p>;
-  if (apps.length === 0) return <p className="text-sm text-white/40">You haven&apos;t authorized any apps yet.</p>;
+  if (error) return <p className="font-mono text-sm text-danger">{error}</p>;
+  if (!apps) return <p className="eyebrow text-muted-foreground">LOADING…</p>;
+  if (apps.length === 0)
+    return (
+      <div className="border-2 border-dashed border-border p-8 text-center">
+        <p className="text-sm text-muted-foreground">You haven&apos;t authorized any apps yet.</p>
+      </div>
+    );
 
   return (
     <ul className="space-y-3">
       {apps.map((app) => (
         <li
           key={app.clientId}
-          className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-4"
+          className="flex items-center justify-between gap-4 border-2 border-border bg-card p-4 shadow-brutal-sm"
         >
           <div className="min-w-0">
-            <p className="truncate font-medium text-white">{app.clientName}</p>
-            <p className="mt-0.5 text-xs text-white/40">
-              Scopes: {app.scope} · Last used {timeAgo(app.lastUsedAt)}
+            <p className="truncate font-medium text-foreground">{app.clientName}</p>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">
+              {app.scope} · last used {timeAgo(app.lastUsedAt)}
             </p>
           </div>
           <Button
-            variant="secondary"
-            className="h-9 shrink-0 px-3 text-xs"
+            variant="danger"
+            size="sm"
+            className="shrink-0"
             disabled={busy === app.clientId}
             onClick={() => revoke(app.clientId)}
           >

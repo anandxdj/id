@@ -50,15 +50,17 @@ export function ProfileForm() {
     }
   }
 
-  if (error && !form) return <p className="text-sm text-red-400">{error}</p>;
-  if (!profile || !form) return <p className="text-sm text-white/40">Loading…</p>;
+  if (error && !form) return <p className="font-mono text-sm text-danger">{error}</p>;
+  if (!profile || !form) return <p className="eyebrow text-muted-foreground">LOADING…</p>;
 
   return (
     <form onSubmit={save} className="max-w-md space-y-4">
       <div>
         <Label>Email</Label>
         <Input value={profile.email} disabled />
-        <p className="mt-1 text-xs text-white/40">Email and role are managed by an administrator.</p>
+        <p className="mt-1 font-mono text-xs text-muted-foreground">
+          Email and role are managed by an administrator.
+        </p>
       </div>
       {FIELDS.map((f) => (
         <div key={f.key}>
@@ -75,15 +77,15 @@ export function ProfileForm() {
           value={form.bio ?? ''}
           onChange={(e) => setForm((prev) => (prev ? { ...prev, bio: e.target.value } : prev))}
           rows={3}
-          className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white/40 focus:outline-none focus:ring-1 focus:ring-white/30"
+          className="w-full border-2 border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
         />
       </div>
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={saving}>
           {saving ? 'Saving…' : 'Save changes'}
         </Button>
-        {status && <span className="text-sm text-emerald-400">{status}</span>}
-        {error && <span className="text-sm text-red-400">{error}</span>}
+        {status && <span className="font-mono text-xs font-bold uppercase text-ok">{status}</span>}
+        {error && <span className="font-mono text-xs font-bold text-danger">{error}</span>}
       </div>
     </form>
   );

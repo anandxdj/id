@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import * as adminApi from '@/features/admin/services/adminApi';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { timeAgo } from '@/lib/utils';
 import type { AdminUser } from '@/types';
 
@@ -26,41 +27,41 @@ export function UsersTable() {
   return (
     <div className="space-y-4">
       <Input placeholder="Search by name or email…" value={search} onChange={(e) => setSearch(e.target.value)} />
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      <div className="overflow-hidden rounded-xl border border-white/10">
+      {error && <p className="font-mono text-sm text-danger">{error}</p>}
+      <div className="border-2 border-border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-white/[0.03] text-xs text-white/50">
+          <thead className="border-b-2 border-border bg-muted">
             <tr>
-              <th className="px-4 py-2.5 font-medium">Name</th>
-              <th className="px-4 py-2.5 font-medium">Email</th>
-              <th className="px-4 py-2.5 font-medium">Role</th>
-              <th className="px-4 py-2.5 font-medium">Status</th>
-              <th className="px-4 py-2.5 font-medium">Joined</th>
+              <th className="px-4 py-2.5 text-left eyebrow text-muted-foreground">Name</th>
+              <th className="px-4 py-2.5 text-left eyebrow text-muted-foreground">Email</th>
+              <th className="px-4 py-2.5 text-left eyebrow text-muted-foreground">Role</th>
+              <th className="px-4 py-2.5 text-left eyebrow text-muted-foreground">Status</th>
+              <th className="px-4 py-2.5 text-left eyebrow text-muted-foreground">Joined</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody>
             {users.map((u) => (
               <tr
                 key={u.id}
                 onClick={() => router.push(`/admin/users/${u.id}`)}
-                className="cursor-pointer hover:bg-white/[0.03]"
+                className="cursor-pointer border-b border-border hover:bg-muted"
               >
-                <td className="px-4 py-2.5 text-white">{u.name}</td>
-                <td className="px-4 py-2.5 text-white/70">{u.email}</td>
-                <td className="px-4 py-2.5 text-white/60">{u.role}</td>
-                <td className="px-4 py-2.5">
+                <td className="px-4 py-3 text-sm text-foreground">{u.name}</td>
+                <td className="px-4 py-3 text-sm text-muted-foreground">{u.email}</td>
+                <td className="px-4 py-3 text-sm text-muted-foreground">{u.role}</td>
+                <td className="px-4 py-3 text-sm">
                   {u.disabled ? (
-                    <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] text-red-300">Disabled</span>
+                    <Badge tone="danger">Disabled</Badge>
                   ) : (
-                    <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-300">Active</span>
+                    <Badge tone="ok">Active</Badge>
                   )}
                 </td>
-                <td className="px-4 py-2.5 text-white/40">{timeAgo(u.createdAt)}</td>
+                <td className="px-4 py-3 text-sm text-muted-foreground">{timeAgo(u.createdAt)}</td>
               </tr>
             ))}
             {users.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-white/40">
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-muted-foreground">
                   No users found.
                 </td>
               </tr>

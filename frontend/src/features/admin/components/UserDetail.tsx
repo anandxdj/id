@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import * as adminApi from '@/features/admin/services/adminApi';
 import { ActivityFeed } from '@/features/admin/components/ActivityFeed';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Panel } from '@/components/ui/panel';
 import { timeAgo } from '@/lib/utils';
 import type { AdminUserDetail } from '@/types';
 
@@ -34,23 +36,26 @@ export function UserDetail({ userId }: { userId: string }) {
     }
   }
 
-  if (error) return <p className="text-sm text-red-400">{error}</p>;
-  if (!detail) return <p className="text-sm text-white/40">Loading…</p>;
+  if (error) return <p className="font-mono text-sm text-danger">{error}</p>;
+  if (!detail) return <p className="eyebrow text-muted-foreground">LOADING…</p>;
   const { user, sessions, apps, activity } = detail;
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-5">
+      <div className="flex items-start justify-between gap-4 border-2 border-border bg-card p-5 shadow-brutal-sm">
         <div>
-          <p className="text-lg font-semibold text-white">{user.name}</p>
-          <p className="text-sm text-white/60">{user.email}</p>
-          <p className="mt-1 text-xs text-white/40">
+          <div className="flex items-center gap-2">
+            <p className="font-heading text-xl font-bold text-foreground">{user.name}</p>
+            {user.disabled ? <Badge tone="danger">Disabled</Badge> : <Badge tone="ok">Active</Badge>}
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">{user.email}</p>
+          <p className="eyebrow mt-2 text-muted-foreground">
             Role {user.role} · {user.disabled ? `disabled ${timeAgo(user.disabledAt)}` : 'active'} · joined {timeAgo(user.createdAt)}
           </p>
         </div>
         <Button
-          variant={user.disabled ? 'secondary' : 'primary'}
-          className="h-9 px-3 text-xs"
+          variant={user.disabled ? 'secondary' : 'danger'}
+          size="sm"
           disabled={busy}
           onClick={toggleSuspend}
         >
@@ -58,42 +63,47 @@ export function UserDetail({ userId }: { userId: string }) {
         </Button>
       </div>
 
-      <section>
-        <h3 className="mb-2 text-sm font-semibold text-white/80">Sessions ({sessions.length})</h3>
+      <Panel label={`[ SESSIONS ] (${sessions.length})`}>
         {sessions.length === 0 ? (
-          <p className="text-sm text-white/40">No active sessions.</p>
+          <div className="border-2 border-dashed border-border p-8 text-center">
+            <p className="text-sm text-muted-foreground">No active sessions.</p>
+          </div>
         ) : (
           <ul className="space-y-2 text-sm">
             {sessions.map((s) => (
-              <li key={s.sid} className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-white/70">
+              <li
+                key={s.sid}
+                className="border-2 border-border bg-card px-3 py-2 font-mono text-xs text-muted-foreground shadow-brutal-sm"
+              >
                 {s.ua || 'Unknown device'} · {s.ip || 'no ip'} · active {timeAgo(s.lastSeenAt)}
               </li>
             ))}
           </ul>
         )}
-      </section>
+      </Panel>
 
-      <section>
-        <h3 className="mb-2 text-sm font-semibold text-white/80">Authorized apps ({apps.length})</h3>
+      <Panel label={`[ AUTHORIZED_APPS ] (${apps.length})`}>
         {apps.length === 0 ? (
-          <p className="text-sm text-white/40">No authorized apps.</p>
+          <div className="border-2 border-dashed border-border p-8 text-center">
+            <p className="text-sm text-muted-foreground">No authorized apps.</p>
+          </div>
         ) : (
           <ul className="space-y-2 text-sm">
             {apps.map((a) => (
-              <li key={a.clientId} className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-white/70">
+              <li
+                key={a.clientId}
+                className="border-2 border-border bg-card px-3 py-2 font-mono text-xs text-muted-foreground shadow-brutal-sm"
+              >
                 {a.clientName} · {a.scope} · last used {timeAgo(a.lastUsedAt)}
               </li>
             ))}
           </ul>
         )}
-      </section>
+      </Panel>
 
-      <section>
-        <h3 className="mb-2 text-sm font-semibold text-white/80">Recent activity</h3>
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4">
-          <ActivityFeed events={activity} />
-        </div>
-      </section>
+      <Panel label="[ RECENT_ACTIVITY ]">
+        <ActivityFeed events={activity} />
+      </Panel>
     </div>
   );
 }

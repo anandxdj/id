@@ -1,13 +1,21 @@
 import Link from 'next/link';
 import { CreateClientWizard } from '@/features/admin/components/CreateClientWizard';
+import { SectionHeading } from '@/components/ui/section-heading';
 
 export default function NewAppPage() {
   return (
-    <section className="space-y-4">
-      <Link href="/admin/apps" className="text-sm text-white/50 hover:text-white/80">
+    <section className="space-y-6">
+      <Link
+        href="/admin/apps"
+        className="eyebrow text-muted-foreground transition-colors hover:text-foreground"
+      >
         ← Back to apps
       </Link>
-      <h2 className="text-lg font-semibold text-white">Register a new app</h2>
+      <SectionHeading
+        eyebrow="[ 02_APPS / NEW ]"
+        title="Register a new app"
+        description="Create an OIDC client and generate wiring guidance for it."
+      />
       <CreateClientWizard />
     </section>
   );

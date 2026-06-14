@@ -44,15 +44,17 @@ export function CreateClientWizard() {
   if (created) {
     return (
       <div className="space-y-6">
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.06] p-4">
-          <p className="text-sm font-medium text-emerald-300">App “{created.clientName}” created</p>
-          <p className="mt-1 text-xs text-white/60">
-            Client ID: <code className="font-mono text-white">{created.clientId}</code>
+        <div className="border-2 border-ok bg-ok/10 p-4">
+          <p className="font-mono text-sm font-bold uppercase tracking-wide text-ok">
+            App “{created.clientName}” created
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Client ID: <code className="font-mono text-foreground">{created.clientId}</code>
           </p>
         </div>
         <SecretRevealOnce label="Client secret (shown once)" value={created.clientSecret} />
         <div>
-          <h3 className="mb-2 text-sm font-semibold text-white/80">LLM config-prompt</h3>
+          <h3 className="eyebrow mb-2 text-muted-foreground">[ LLM_CONFIG_PROMPT ]</h3>
           <ConfigPromptBlock clientId={created.clientId} initialPrompt={created.configPrompt} />
         </div>
         <div className="flex gap-2">
@@ -77,9 +79,9 @@ export function CreateClientWizard() {
           onChange={(e) => setRedirectUris(e.target.value)}
           rows={3}
           placeholder={'https://app.example.com/api/auth/callback\nhttp://localhost:3000/api/auth/callback'}
-          className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white/40 focus:outline-none focus:ring-1 focus:ring-white/30"
+          className="w-full border-2 border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
         />
-        <p className="mt-1 text-xs text-white/40">One per line (or comma-separated).</p>
+        <p className="mt-1 font-mono text-xs text-muted-foreground">One per line (or comma-separated).</p>
       </div>
       <div>
         <Label>Description (optional)</Label>
@@ -90,14 +92,14 @@ export function CreateClientWizard() {
         <select
           value={stack}
           onChange={(e) => setStack(e.target.value)}
-          className="h-11 w-full rounded-lg border border-white/15 bg-white/5 px-3 text-sm text-white focus:border-white/40 focus:outline-none"
+          className="h-11 w-full border-2 border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
         >
           <option value="nextjs">Next.js</option>
           <option value="express">Express</option>
           <option value="python">Python</option>
         </select>
       </div>
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <p className="font-mono text-sm text-danger">{error}</p>}
       <Button type="submit" disabled={creating}>
         {creating ? 'Creating…' : 'Create app'}
       </Button>

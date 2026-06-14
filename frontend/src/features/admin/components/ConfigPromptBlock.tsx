@@ -47,22 +47,24 @@ export function ConfigPromptBlock({ clientId, initialPrompt }: { clientId: strin
               key={s.id}
               onClick={() => pick(s.id)}
               className={cn(
-                'rounded-md px-3 py-1.5 text-xs transition-colors',
-                stack === s.id ? 'bg-white text-black' : 'bg-white/10 text-white/70 hover:bg-white/20',
+                'border-2 border-border px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-wide transition-colors',
+                stack === s.id
+                  ? 'bg-brand text-brand-foreground'
+                  : 'bg-card text-muted-foreground hover:text-foreground',
               )}
             >
               {s.label}
             </button>
           ))}
         </div>
-        <Button variant="secondary" className="h-8 px-3 text-xs" onClick={copy}>
+        <Button variant="secondary" size="sm" onClick={copy}>
           {copied ? 'Copied' : 'Copy prompt'}
         </Button>
       </div>
-      <pre className={cn('max-h-96 overflow-auto rounded-xl border border-white/10 bg-black/40 p-4 text-xs leading-relaxed text-white/80', loading && 'opacity-50')}>
+      <pre className={cn('max-h-96 overflow-auto border-2 border-border bg-card p-4 font-mono text-xs leading-relaxed text-foreground shadow-brutal-sm', loading && 'opacity-50')}>
         {prompt}
       </pre>
-      <p className="text-xs text-white/40">
+      <p className="font-mono text-xs text-muted-foreground">
         Paste this into your coding agent inside the relying-party repo to wire up the OIDC client.
       </p>
     </div>

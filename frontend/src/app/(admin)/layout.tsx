@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { AdminNav } from '@/features/admin/components/AdminNav';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -19,24 +20,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [loading, user, router]);
 
   if (loading || !user || user.role === 'user') {
-    return <main className="flex min-h-screen items-center justify-center text-white/50">Loading…</main>;
+    return (
+      <main className="flex min-h-screen items-center justify-center">
+        <p className="eyebrow text-muted-foreground">LOADING…</p>
+      </main>
+    );
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10">
-      <header className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-semibold text-white">id admin</h1>
-          <p className="text-sm text-white/50">Signed in as {user.email}</p>
+    <div className="min-h-screen bg-background">
+      {/* top bar */}
+      <header className="sticky top-0 z-20 border-b-2 border-border bg-background/90 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
+          <div>
+            <Link href="/admin" className="font-heading text-xl font-bold tracking-tight">
+              id<span className="text-muted-foreground">/admin</span>
+            </Link>
+            <p className="eyebrow mt-0.5 text-muted-foreground">{user.email}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href="/account">
+              <Button variant="secondary" size="sm">
+                My account
+              </Button>
+            </Link>
+            <ThemeToggle />
+          </div>
         </div>
-        <Link href="/account">
-          <Button variant="ghost" className="h-9 px-3 text-xs">
-            My account
-          </Button>
-        </Link>
       </header>
-      <AdminNav />
-      <div className="py-6">{children}</div>
+
+      <div className="mx-auto max-w-5xl px-4">
+        <AdminNav />
+        <div className="py-8">{children}</div>
+      </div>
     </div>
   );
 }

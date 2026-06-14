@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import * as accountApi from '@/features/account/services/accountApi';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { timeAgo } from '@/lib/utils';
 import type { SessionView } from '@/types';
 
@@ -41,16 +42,18 @@ export function SessionList() {
     }
   }
 
-  if (error) return <p className="text-sm text-red-400">{error}</p>;
-  if (!sessions) return <p className="text-sm text-white/40">Loading…</p>;
+  if (error) return <p className="font-mono text-sm text-danger">{error}</p>;
+  if (!sessions) return <p className="eyebrow text-muted-foreground">LOADING…</p>;
 
   const others = sessions.filter((s) => !s.current).length;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-white/60">{sessions.length} active session{sessions.length === 1 ? '' : 's'}</p>
-        <Button variant="secondary" className="h-9 px-3 text-xs" disabled={busy || others === 0} onClick={revokeAll}>
+      <div className="flex items-center justify-between gap-4">
+        <p className="eyebrow text-muted-foreground">
+          {sessions.length} ACTIVE SESSION{sessions.length === 1 ? '' : 'S'}
+        </p>
+        <Button variant="secondary" size="sm" disabled={busy || others === 0} onClick={revokeAll}>
           Sign out everywhere else
         </Button>
       </div>
@@ -58,19 +61,19 @@ export function SessionList() {
         {sessions.map((s) => (
           <li
             key={s.sid}
-            className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-4"
+            className="flex items-center justify-between gap-4 border-2 border-border bg-card p-4 shadow-brutal-sm"
           >
             <div className="min-w-0">
-              <p className="truncate text-sm text-white">
+              <p className="flex items-center gap-2 truncate text-sm font-medium text-foreground">
                 {s.ua || 'Unknown device'}
-                {s.current && <span className="ml-2 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-300">This device</span>}
+                {s.current && <Badge tone="ok">This device</Badge>}
               </p>
-              <p className="mt-0.5 text-xs text-white/40">
+              <p className="mt-1 font-mono text-xs text-muted-foreground">
                 {s.ip || 'no ip'} · active {timeAgo(s.lastSeenAt)}
               </p>
             </div>
             {!s.current && (
-              <Button variant="ghost" className="h-9 px-3 text-xs" disabled={busy} onClick={() => revoke(s.sid)}>
+              <Button variant="danger" size="sm" disabled={busy} onClick={() => revoke(s.sid)}>
                 Revoke
               </Button>
             )}

@@ -1,12 +1,14 @@
 import { SessionList } from '@/features/account/components/SessionList';
+import { SectionHeading } from '@/components/ui/section-heading';
 
 export default function SecurityPage() {
   return (
-    <section className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-white">Security</h2>
-        <p className="mt-1 text-sm text-white/50">Devices and browsers currently signed in to your account.</p>
-      </div>
+    <section className="space-y-6">
+      <SectionHeading
+        eyebrow="[ 02_SECURITY ]"
+        title="Security"
+        description="Devices and browsers currently signed in to your account."
+      />
       <SessionList />
     </section>
   );

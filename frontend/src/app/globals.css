@@ -1,13 +1,189 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
 
-:root {
-  --background: #0b0b0f;
-  --foreground: #f5f5f7;
+@custom-variant dark (&:is(.dark *));
+
+/* ──────────────────────────────────────────────────────────────────────────
+   id — Brutalist design system
+   Black/white now. ONE signature accent lives in `--brand`.
+   To colorize the whole product later, change ONE line:
+       :root { --brand: #C6F702; --brand-foreground: #000; }
+   Everything using bg-brand / text-brand / border-brand flips instantly.
+   ────────────────────────────────────────────────────────────────────────── */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  /* signature accent — swap these two lines to colorize the product */
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+
+  /* status — constant across themes, never repurposed for branding */
+  --color-ok: var(--ok);
+  --color-ok-foreground: var(--ok-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-warn: var(--warn);
+  --color-warn-foreground: var(--warn-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-roboto-mono);
+  --font-heading: var(--font-inter);
+
+  /* brutalist = sharp corners */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
 }
 
-html,
-body {
-  background: var(--background);
-  color: var(--foreground);
-  -webkit-font-smoothing: antialiased;
+:root {
+  /* light brutalism — paper white, ink black */
+  --background: oklch(0.98 0 0);
+  --foreground: oklch(0.13 0 0);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.13 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.13 0 0);
+
+  --primary: oklch(0.13 0 0);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.95 0 0);
+  --secondary-foreground: oklch(0.13 0 0);
+  --muted: oklch(0.95 0 0);
+  --muted-foreground: oklch(0.45 0 0);
+  --accent: oklch(0.95 0 0);
+  --accent-foreground: oklch(0.13 0 0);
+
+  /* signature accent — defaults to ink so fills read as inverted blocks */
+  --brand: var(--foreground);
+  --brand-foreground: var(--background);
+
+  --ok: oklch(0.62 0.17 150);
+  --ok-foreground: oklch(0.13 0 0);
+  --danger: oklch(0.58 0.23 27);
+  --danger-foreground: oklch(0.98 0 0);
+  --warn: oklch(0.82 0.17 85);
+  --warn-foreground: oklch(0.13 0 0);
+
+  /* brutalist borders = full-contrast ink, never soft grey */
+  --border: oklch(0.13 0 0);
+  --input: oklch(0.13 0 0);
+  --ring: oklch(0.13 0 0);
+}
+
+.dark {
+  /* dark brutalism — true near-black, signal white */
+  --background: oklch(0.13 0 0);
+  --foreground: oklch(0.98 0 0);
+
+  --card: oklch(0.16 0 0);
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.16 0 0);
+  --popover-foreground: oklch(0.98 0 0);
+
+  --primary: oklch(0.98 0 0);
+  --primary-foreground: oklch(0.13 0 0);
+  --secondary: oklch(0.22 0 0);
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.22 0 0);
+  --muted-foreground: oklch(0.65 0 0);
+  --accent: oklch(0.22 0 0);
+  --accent-foreground: oklch(0.98 0 0);
+
+  --brand: var(--foreground);
+  --brand-foreground: var(--background);
+
+  --ok: oklch(0.72 0.18 150);
+  --ok-foreground: oklch(0.13 0 0);
+  --danger: oklch(0.65 0.21 27);
+  --danger-foreground: oklch(0.13 0 0);
+  --warn: oklch(0.85 0.17 85);
+  --warn-foreground: oklch(0.13 0 0);
+
+  --border: oklch(0.98 0 0);
+  --input: oklch(0.98 0 0);
+  --ring: oklch(0.98 0 0);
+}
+
+/* ── Brutalist utilities ─────────────────────────────────────────────────── */
+
+/* hard offset shadows in the foreground ink (auto-flips black↔white per theme) */
+@utility shadow-brutal-xs { box-shadow: 2px 2px 0 0 var(--color-foreground); }
+@utility shadow-brutal-sm { box-shadow: 3px 3px 0 0 var(--color-foreground); }
+@utility shadow-brutal { box-shadow: 4px 4px 0 0 var(--color-foreground); }
+@utility shadow-brutal-lg { box-shadow: 6px 6px 0 0 var(--color-foreground); }
+@utility shadow-brutal-xl { box-shadow: 8px 8px 0 0 var(--color-foreground); }
+
+/* tiny uppercase mono eyebrow label — the brutalist "[ 01_SECTION ]" tag */
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  /* selection reads as a brutalist ink block */
+  ::selection {
+    background: var(--color-foreground);
+    color: var(--color-background);
+  }
+}
+
+/* ── Theme toggle: View Transition circle reveal ─────────────────────────── */
+::view-transition-image-pair(root) {
+  isolation: auto;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+  display: block;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 9999;
+  animation: theme-reveal 480ms ease-in-out;
+}
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0% at var(--vt-x) var(--vt-y));
+  }
+  to {
+    clip-path: circle(var(--vt-r) at var(--vt-x) var(--vt-y));
+  }
 }

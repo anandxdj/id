@@ -64,16 +64,20 @@ export function ConsentCard() {
   const scopes = ctx.scope.split(/\s+/).filter(Boolean);
 
   return (
-    <Card>
+    <Card className="shadow-brutal-xl">
       <CardTitle>{ctx.client_name}</CardTitle>
       <CardDescription>
         {ctx.description || `${ctx.client_name} wants to access your id account.`}
       </CardDescription>
 
-      <ul className="mt-6 space-y-2">
+      <p className="eyebrow mt-6 mb-2 text-muted-foreground">[ REQUESTED_ACCESS ]</p>
+      <ul className="space-y-2">
         {scopes.map((s) => (
-          <li key={s} className="flex items-start gap-2 text-sm text-white/80">
-            <span className="mt-0.5 text-white/40">•</span>
+          <li
+            key={s}
+            className="flex items-center gap-2 border-2 border-border px-3 py-2 text-sm text-foreground"
+          >
+            <span className="font-mono text-xs font-bold text-brand">›</span>
             {SCOPE_LABELS[s] ?? s}
           </li>
         ))}

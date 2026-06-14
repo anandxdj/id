@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import * as adminApi from '@/features/admin/services/adminApi';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { SecretRevealOnce } from '@/features/admin/components/SecretRevealOnce';
 import { timeAgo } from '@/lib/utils';
 import type { AdminClient } from '@/types';
@@ -43,9 +44,14 @@ export function ClientsTable() {
     }
   }
 
-  if (error) return <p className="text-sm text-red-400">{error}</p>;
-  if (!clients) return <p className="text-sm text-white/40">Loading…</p>;
-  if (clients.length === 0) return <p className="text-sm text-white/40">No apps registered yet.</p>;
+  if (error) return <p className="font-mono text-sm text-danger">{error}</p>;
+  if (!clients) return <p className="eyebrow text-muted-foreground">LOADING…</p>;
+  if (clients.length === 0)
+    return (
+      <div className="border-2 border-dashed border-border p-8 text-center">
+        <p className="text-sm text-muted-foreground">No apps registered yet.</p>
+      </div>
+    );
 
   return (
     <div className="space-y-4">
@@ -54,37 +60,36 @@ export function ClientsTable() {
       )}
       <ul className="space-y-3">
         {clients.map((c) => (
-          <li key={c.clientId} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="font-medium text-white">
-                  {c.clientName}
-                  {c.suspended && (
-                    <span className="ml-2 rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] text-red-300">Suspended</span>
-                  )}
-                </p>
-                <p className="mt-0.5 font-mono text-xs text-white/40">{c.clientId}</p>
-                <p className="mt-1 truncate text-xs text-white/40">{c.redirectUris.join(', ')}</p>
-                <p className="mt-1 text-xs text-white/30">Created {timeAgo(c.createdAt)}</p>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <Button
-                  variant="secondary"
-                  className="h-8 px-3 text-xs"
-                  disabled={busy === c.clientId}
-                  onClick={() => rotate(c.clientId)}
-                >
-                  Rotate secret
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="h-8 px-3 text-xs"
-                  disabled={busy === c.clientId}
-                  onClick={() => toggleSuspend(c)}
-                >
-                  {c.suspended ? 'Unsuspend' : 'Suspend'}
-                </Button>
-              </div>
+          <li
+            key={c.clientId}
+            className="flex items-start justify-between gap-4 border-2 border-border bg-card p-4 shadow-brutal-sm"
+          >
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 font-medium text-foreground">
+                {c.clientName}
+                {c.suspended && <Badge tone="danger">Suspended</Badge>}
+              </p>
+              <p className="mt-0.5 font-mono text-xs text-muted-foreground">{c.clientId}</p>
+              <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{c.redirectUris.join(', ')}</p>
+              <p className="eyebrow mt-1 text-muted-foreground">Created {timeAgo(c.createdAt)}</p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy === c.clientId}
+                onClick={() => rotate(c.clientId)}
+              >
+                Rotate secret
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy === c.clientId}
+                onClick={() => toggleSuspend(c)}
+              >
+                {c.suspended ? 'Unsuspend' : 'Suspend'}
+              </Button>
             </div>
           </li>
         ))}
