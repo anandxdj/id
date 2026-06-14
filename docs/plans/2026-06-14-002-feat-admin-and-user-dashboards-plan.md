@@ -1,7 +1,7 @@
 ---
 title: "feat: Admin panel + user dashboard + activity monitoring (v2)"
 type: feat
-status: planned
+status: completed
 created: 2026-06-14
 depth: deep
 supersedes-deferral-in: 2026-06-14-001-feat-internal-oidc-provider-plan.md

@@ -78,6 +78,24 @@ Key endpoints:
 | `GET /oauth/userinfo` | Claims for a Bearer access token |
 | `POST /api/auth/{register,login,logout,refresh-token}`, `GET /api/auth/me` | First-party session |
 | `GET /api/oauth/consent/context`, `POST /api/oauth/consent` | Consent screen backend |
+| `GET/DELETE /api/me/apps[/:clientId]`, `GET/DELETE /api/me/sessions[/:sid]`, `GET/PATCH /api/me/profile` | User self-service (dashboard) |
+| `GET /api/admin/{users,metrics,activity,clients}`, `POST /api/admin/clients` (+ rotate/suspend) | Admin panel (role-gated) |
+
+## Dashboards (v2)
+
+Two surfaces sit on top of the OIDC engine, fed by an append-only **activity event
+store** (Mongo, TTL-bounded via `EVENT_RETENTION_DAYS`) written at every auth chokepoint:
+
+- **User dashboard** (`/account`) — Google-style: connected apps (revoke kills the
+  app's live tokens), active sessions (revoke / sign-out-everywhere), and profile editing.
+- **Admin panel** (`/admin`, admin role only) — usage metrics + activity feed, user
+  search/detail with disable/reinstate, and OAuth-client management: create (secret shown
+  **once**), rotate secret, suspend. Creating an app also emits a **stack-aware LLM
+  config-prompt** (Next.js / Express / Python) — paste it into a coding agent in the
+  relying-party repo to wire the OIDC client automatically. The prompt carries a
+  `{{CLIENT_SECRET}}` placeholder only; the real secret is revealed separately.
+
+See `docs/plans/2026-06-14-002-*` for the v2 implementation plan.
 
 Tests: `pnpm test` (unit tests always run; integration tests require Mongo+Redis and self-skip otherwise).
 
