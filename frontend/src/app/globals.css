@@ -58,6 +58,14 @@
 }
 
 :root {
+  /* easing for theme-swap View Transitions (skiper26 toggle) */
+  --expo-out: linear(
+    0, 0.1684 2.66%, 0.3165 5.49%, 0.4458 8.52%, 0.5572 11.78%, 0.6526 15.31%,
+    0.7338 19.18%, 0.8011 23.41%, 0.8557 28.07%, 0.8997 33.18%, 0.9337 38.75%,
+    0.959 44.82%, 0.9773 51.42%, 0.9901 58.62%, 0.9982 66.5%, 1 75%
+  );
+  --expo-in: cubic-bezier(0.95, 0.05, 0.795, 0.035);
+
   /* light brutalism — paper white, ink black */
   --background: oklch(0.98 0 0);
   --foreground: oklch(0.13 0 0);

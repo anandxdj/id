@@ -4,7 +4,8 @@ Self-hosted **OpenID Connect** provider for universal SSO across internal projec
 Authorization Code + PKCE, discovery, JWKS, RS256 ID tokens, userinfo, and a consent screen.
 
 - **backend/** — TypeScript · Express · Mongoose (MongoDB) · ioredis (Redis) · node-jose
-- **frontend/** — Next.js (App Router), feature-based · Tailwind v4 (login + consent surfaces)
+- **frontend/** — Next.js (App Router), feature-based · Tailwind v4 · landing, auth, user dashboard &
+  admin panel in one **brutalist design system** (light + dark). See [frontend/README.md](frontend/README.md).
 
 ## Architecture
 
@@ -104,9 +105,14 @@ Tests: `pnpm test` (unit tests always run; integration tests require Mongo+Redis
 ```bash
 cd frontend
 cp .env.example .env.local      # NEXT_PUBLIC_API_URL=http://localhost:4000
+                                # optional NEXT_PUBLIC_THEME_GIF_URL= for the theme-swap GIF
 pnpm install
 pnpm dev                        # http://localhost:3000
 ```
+
+`/` is a brutalist landing page; `/login` + `/consent` are the auth surfaces; `/account` and
+`/admin` are the dashboards. UI design system (one-line accent swap, tokens, theming) is documented
+in **[frontend/README.md](frontend/README.md)**.
 
 ## Folder structure
 
