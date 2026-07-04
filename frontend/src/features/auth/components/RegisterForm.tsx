@@ -10,47 +10,73 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 
-export function LoginForm() {
-  const { login } = useAuth();
+export function RegisterForm() {
+  const { register, login } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnTo = searchParams.get('return_to');
 
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [connectors, setConnectors] = useState<Connector[]>([]);
 
   useEffect(() => {
-    // Surface a backend-reported social-login failure (?error=…) and load connectors.
-    const err = searchParams.get('error');
-    if (err) setError(`Sign-in failed (${err}).`);
     getConnectors().then(setConnectors).catch(() => setConnectors([]));
-  }, [searchParams]);
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
     setSubmitting(true);
     try {
+      // 1. Create the account
+      await register(name, email, password);
+      // 2. Automatically log in the user
       await login(email, password);
-      // If we arrived from an OIDC authorize request, resume it; else go home.
-      if (!resumeOAuth(returnTo)) router.push('/account');
+      // 3. Resume OIDC flow or go to user account dashboard
+      if (!resumeOAuth(returnTo)) {
+        router.push('/account');
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(err instanceof Error ? err.message : 'Registration failed');
       setSubmitting(false);
     }
   }
 
   return (
     <Card className="shadow-brutal-xl">
-      <CardTitle>Sign in</CardTitle>
+      <CardTitle>Create an account</CardTitle>
       <CardDescription>
-        {returnTo ? 'Authorize access to continue to the app.' : 'Welcome back.'}
+        {returnTo ? 'Sign up to continue to the application.' : 'Sign up to get started.'}
       </CardDescription>
 
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
+        <div>
+          <Label htmlFor="name">Full Name</Label>
+          <Input
+            id="name"
+            type="text"
+            autoComplete="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+        </div>
         <div>
           <Label htmlFor="email">Email</Label>
           <Input
@@ -67,9 +93,20 @@ export function LoginForm() {
           <Input
             id="password"
             type="password"
-            autoComplete="current-password"
+            autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="confirmPassword">Confirm Password</Label>
+          <Input
+            id="confirmPassword"
+            type="password"
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
             required
           />
         </div>
@@ -81,14 +118,14 @@ export function LoginForm() {
         )}
 
         <Button type="submit" className="w-full" disabled={submitting}>
-          {submitting ? 'Signing in…' : 'Sign in'}
+          {submitting ? 'Creating account…' : 'Sign up'}
         </Button>
       </form>
 
       <div className="mt-6 text-center text-sm text-muted-foreground">
-        Don&apos;t have an account?{' '}
-        <a href={returnTo ? `/register?return_to=${encodeURIComponent(returnTo)}` : '/register'} className="font-bold underline hover:text-foreground">
-          Sign up
+        Already have an account?{' '}
+        <a href={returnTo ? `/login?return_to=${encodeURIComponent(returnTo)}` : '/login'} className="font-bold underline hover:text-foreground">
+          Sign in
         </a>
       </div>
 
