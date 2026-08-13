@@ -27,7 +27,9 @@ process.env.JWT_REFRESH_SECRET ??= 'test-refresh-secret';
  * PEM makes every replica derive the same thumbprint and the unique index collapses
  * them into one row, but fatal to an assertion about *the* active kid.
  */
-process.env.MONGO_DB_NAME = 'id_test_signing_keys';
+// Derived from whatever database the run was pointed at, rather than replacing it, so
+// this suite stays isolated without ignoring an injected `MONGO_DB_NAME`.
+process.env.MONGO_DB_NAME = `${process.env.MONGO_DB_NAME ?? 'id_test'}_signing_keys`;
 
 let available = false;
 /** Every kid this file creates, so teardown leaves the collection as it found it. */
