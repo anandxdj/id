@@ -1,12 +1,119 @@
-import type { HTMLAttributes } from 'react';
+"use client";
+
+import { useState, type HTMLAttributes } from 'react';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
-export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
+  variant?: 'standard' | 'gooey' | 'organic';
+}
+
+export function Card({ className, variant = 'standard', children, ...props }: CardProps) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  if (variant === 'organic') {
+    const hasOrganicShape = className?.includes('shape-organic-');
+    return (
+      <div
+        className={cn(
+          'w-full border p-6 bg-[var(--organic-bg)] text-[var(--organic-foreground)] border-[var(--organic-border)] shadow-brutal transition-all duration-300',
+          !hasOrganicShape && 'shape-organic-md',
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </div>
+    );
+  }
+
+  if (variant === 'gooey') {
+    return (
+      <div
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={cn(
+          'relative w-full border border-border/40 p-6 shadow-sm rounded-3xl overflow-hidden bg-card/40 select-none transition-all duration-300 hover:shadow-md',
+          className
+        )}
+        {...props}
+      >
+        {/* Organic Gooey Backdrop inside the border bounds */}
+        <div
+          className="absolute inset-0 z-0 pointer-events-none overflow-hidden"
+          style={{ filter: 'url(#gooey-global)' }}
+        >
+          {/* Main central blob */}
+          <motion.div
+            className="absolute bg-card inset-4 rounded-full"
+            animate={
+              isHovered
+                ? { scale: [1, 1.06, 0.96, 1], x: [0, 4, -4, 0], y: [0, -3, 3, 0] }
+                : { scale: 1, x: 0, y: 0 }
+            }
+            transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          {/* Top Left Blob */}
+          <motion.div
+            className="absolute bg-card size-36 rounded-full"
+            animate={
+              isHovered
+                ? { x: [0, -12, 6, 0], y: [0, 6, -10, 0], scale: [1, 1.15, 0.85, 1] }
+                : { x: 0, y: 0, scale: 1 }
+            }
+            transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+            style={{ top: '-15%', left: '-15%' }}
+          />
+          {/* Top Right Blob */}
+          <motion.div
+            className="absolute bg-card size-36 rounded-full"
+            animate={
+              isHovered
+                ? { x: [0, 10, -8, 0], y: [0, -10, 6, 0], scale: [1, 0.85, 1.15, 1] }
+                : { x: 0, y: 0, scale: 1 }
+            }
+            transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
+            style={{ top: '-15%', right: '-15%' }}
+          />
+          {/* Bottom Left Blob */}
+          <motion.div
+            className="absolute bg-card size-36 rounded-full"
+            animate={
+              isHovered
+                ? { x: [0, -8, 10, 0], y: [0, 10, -6, 0], scale: [1, 1.1, 0.9, 1] }
+                : { x: 0, y: 0, scale: 1 }
+            }
+            transition={{ duration: 4.8, repeat: Infinity, ease: 'easeInOut' }}
+            style={{ bottom: '-15%', left: '-15%' }}
+          />
+          {/* Bottom Right Blob */}
+          <motion.div
+            className="absolute bg-card size-36 rounded-full"
+            animate={
+              isHovered
+                ? { x: [0, 12, -6, 0], y: [0, -6, 10, 0], scale: [1, 1.2, 0.85, 1] }
+                : { x: 0, y: 0, scale: 1 }
+            }
+            transition={{ duration: 5.2, repeat: Infinity, ease: 'easeInOut' }}
+            style={{ bottom: '-15%', right: '-15%' }}
+          />
+        </div>
+
+        {/* Content Overlay */}
+        <div className="relative z-10 w-full h-full text-card-foreground">
+          {children}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={cn('w-full max-w-sm border-2 border-border bg-card p-8 shadow-brutal-lg', className)}
+      className={cn('w-full border border-border/50 bg-card/70 backdrop-blur-md p-6 shadow-md rounded-xl', className)}
       {...props}
-    />
+    >
+      {children}
+    </div>
   );
 }
 

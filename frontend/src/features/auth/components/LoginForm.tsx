@@ -44,7 +44,7 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="shadow-brutal-xl">
+    <Card variant="gooey">
       <CardTitle>Sign in</CardTitle>
       <CardDescription>
         {returnTo ? 'Authorize access to continue to the app.' : 'Welcome back.'}

@@ -9,6 +9,7 @@ const tabs = [
   { href: '/account/apps', label: 'Connected apps' },
   { href: '/account/security', label: 'Security' },
   { href: '/account/profile', label: 'Profile' },
+  { href: '/account/danger', label: 'Danger Zone' },
 ];
 
 export function AccountNav() {

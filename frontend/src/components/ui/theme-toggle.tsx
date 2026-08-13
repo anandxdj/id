@@ -95,7 +95,7 @@ export function ThemeToggle({
     return (
       <div
         aria-hidden
-        className={cn('size-9 border-2 border-border bg-card shadow-brutal-xs', className)}
+        className={cn('size-9 border border-[var(--organic-border)] bg-[var(--organic-bg)] shape-organic-sm shadow-sm', className)}
       />
     );
   }
@@ -106,11 +106,10 @@ export function ThemeToggle({
       onClick={toggle}
       aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
       className={cn(
-        'inline-flex size-9 items-center justify-center border-2 border-border bg-card text-foreground',
-        'shadow-brutal-xs transition-transform',
-        'hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brutal-sm',
-        'active:translate-x-0 active:translate-y-0 active:shadow-none',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        'inline-flex size-9 items-center justify-center border border-[var(--organic-border)] bg-[var(--organic-bg)] text-[var(--organic-foreground)] shape-organic-sm cursor-pointer',
+        'shadow-sm transition-all duration-300',
+        'hover:rotate-6 hover:scale-105 active:scale-90',
+        'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
         className,
       )}
     >

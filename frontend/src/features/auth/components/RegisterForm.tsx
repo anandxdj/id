@@ -59,7 +59,7 @@ export function RegisterForm() {
   }
 
   return (
-    <Card className="shadow-brutal-xl">
+    <Card variant="gooey">
       <CardTitle>Create an account</CardTitle>
       <CardDescription>
         {returnTo ? 'Sign up to continue to the application.' : 'Sign up to get started.'}

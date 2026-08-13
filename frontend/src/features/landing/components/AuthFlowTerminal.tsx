@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { RefreshCw, Terminal } from 'lucide-react';
+import { RefreshCw, Terminal, CheckCircle2 } from 'lucide-react';
 
 type Src = 'AUTHORIZE' | 'CONSENT' | 'TOKEN' | 'USERINFO' | 'OK';
 interface Line {
@@ -25,30 +25,32 @@ const LOG: Line[] = [
   { t: '00:03.09', src: 'OK', text: 'Handshake complete. Elapsed 3.09s.' },
 ];
 
-const SRC_CLASS: Record<Src, string> = {
-  AUTHORIZE: 'bg-muted text-foreground',
-  CONSENT: 'bg-warn text-warn-foreground',
-  TOKEN: 'bg-brand text-brand-foreground',
-  USERINFO: 'bg-secondary text-secondary-foreground',
-  OK: 'bg-ok text-ok-foreground',
+const SRC_COLORS: Record<Src, string> = {
+  AUTHORIZE: 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10',
+  CONSENT: 'text-amber-400 border-amber-500/20 bg-amber-500/10',
+  TOKEN: 'text-indigo-400 border-indigo-500/20 bg-indigo-500/10',
+  USERINFO: 'text-sky-400 border-sky-500/20 bg-sky-500/10',
+  OK: 'text-brand border-brand/20 bg-brand/10',
 };
 
 export function AuthFlowTerminal() {
-  const [lines, setLines] = useState<Line[]>([]);
+  const [lines, setLines] = useState<Line[]>([LOG[0]]);
   const [i, setI] = useState(0);
   const [running, setRunning] = useState(true);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!running) return;
-    if (i === 0) setLines([]);
+    if (!running || i >= LOG.length - 1) return;
     const id = setTimeout(
       () => {
-        setLines((p) => [...p, LOG[i]]);
-        if (i < LOG.length - 1) setI((n) => n + 1);
-        else setRunning(false);
+        const nextIndex = i + 1;
+        setLines((p) => [...p, LOG[nextIndex]]);
+        setI(nextIndex);
+        if (nextIndex === LOG.length - 1) {
+          setRunning(false);
+        }
       },
-      i === 0 ? 350 : 480,
+      i === 0 ? 350 : 500,
     );
     return () => clearTimeout(id);
   }, [i, running]);
@@ -57,56 +59,70 @@ export function AuthFlowTerminal() {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [lines]);
 
+  const replayFlow = () => {
+    setLines([LOG[0]]);
+    setI(0);
+    setRunning(true);
+  };
+
   return (
-    <div className="flex h-[420px] flex-col border-2 border-border bg-card font-mono shadow-brutal-xl">
-      {/* titlebar */}
-      <div className="flex items-center justify-between border-b-2 border-border bg-muted px-3 py-2">
+    <div id="flow" className="flex h-[420px] flex-col border border-border/50 bg-[#0B0F19] font-mono shadow-md rounded-xl overflow-hidden">
+      {/* Title bar */}
+      <div className="flex items-center justify-between border-b border-border/40 bg-[#161D30] px-4 py-2.5">
         <div className="flex items-center gap-2">
-          <span className="flex gap-1">
-            <span className="size-2.5 border border-border bg-danger" />
-            <span className="size-2.5 border border-border bg-warn" />
-            <span className="size-2.5 border border-border bg-ok" />
+          <span className="flex gap-1.5 select-none">
+            <span className="size-2.5 rounded-full bg-rose-500" />
+            <span className="size-2.5 rounded-full bg-amber-500" />
+            <span className="size-2.5 rounded-full bg-emerald-500" />
           </span>
-          <span className="eyebrow text-muted-foreground">[ OIDC_HANDSHAKE.log ]</span>
+          <span className="eyebrow text-slate-400 font-bold text-[10px] select-none">[ OIDC_HANDSHAKE.log ]</span>
         </div>
-        <span className="eyebrow hidden text-muted-foreground sm:inline">RS256 · PKCE · S256</span>
+        <span className="eyebrow hidden text-slate-400 sm:inline text-[9px] select-none">
+          RS256 · PKCE · S256
+        </span>
       </div>
 
-      {/* stream */}
-      <div className="flex-1 space-y-2 overflow-y-auto p-4 text-[11px] leading-relaxed">
+      {/* Log streams */}
+      <div className="flex-1 space-y-2.5 overflow-y-auto p-4 text-[11px] leading-relaxed scrollbar-thin scrollbar-thumb-slate-700">
         {lines.length === 0 ? (
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Terminal className="size-3.5" /> awaiting authorize request…
+          <div className="flex items-center gap-2 text-slate-500">
+            <Terminal className="size-3.5 animate-pulse text-brand" /> awaiting OIDC request…
           </div>
         ) : (
           lines.map((l, idx) => (
-            <div key={idx} className="flex items-start gap-2">
-              <span className="shrink-0 select-none text-muted-foreground">[{l.t}]</span>
-              <span className={`shrink-0 select-none border border-border px-1 text-[9px] font-bold uppercase ${SRC_CLASS[l.src]}`}>
+            <div key={idx} className="flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-1 duration-200">
+              <span className="shrink-0 select-none text-slate-500">[{l.t}]</span>
+              <span className={`shrink-0 select-none border px-2 py-0.5 text-[8.5px] font-semibold uppercase tracking-wider rounded-md ${SRC_COLORS[l.src]}`}>
                 {l.src}
               </span>
-              <span className="flex-1 break-all text-foreground">{l.text}</span>
+              <span className="flex-1 break-all text-slate-200">{l.text}</span>
             </div>
           ))
         )}
-        {running && <span className="inline-block size-2 animate-pulse bg-brand align-middle" />}
+        {running && (
+          <div className="flex items-center gap-2 text-slate-500 pl-16">
+            <span className="inline-block size-2 animate-pulse bg-brand" />
+            <span className="text-[10px] italic">Processing token claims…</span>
+          </div>
+        )}
         <div ref={endRef} />
       </div>
 
-      {/* controls */}
-      <div className="flex items-center justify-between border-t-2 border-border px-3 py-2">
+      {/* Terminal Footer Controls */}
+      <div className="flex items-center justify-between border-t border-border/40 bg-[#161D30] px-4 py-2.5">
         <button
-          onClick={() => {
-            setI(0);
-            setRunning(true);
-          }}
+          onClick={replayFlow}
           disabled={running}
-          className="inline-flex items-center gap-1.5 border-2 border-border bg-brand px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-foreground shadow-brutal-xs transition-transform hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0 active:translate-y-0 disabled:opacity-40 disabled:hover:translate-x-0 disabled:hover:translate-y-0"
+          className="inline-flex items-center gap-2 border border-transparent bg-brand px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-brand-foreground shadow-sm rounded-lg transition-all hover:opacity-95 active:scale-95 disabled:opacity-40 disabled:active:scale-100 cursor-pointer"
         >
-          <RefreshCw className={`size-3 ${running ? 'animate-spin' : ''}`} /> Replay flow
+          <RefreshCw className={`size-3.5 ${running ? 'animate-spin' : ''}`} />
+          Replay Handshake
         </button>
-        <span className="eyebrow text-muted-foreground">
-          {lines.length}/{LOG.length}
+        <span className="eyebrow text-slate-400 text-[10px] select-none flex items-center gap-1.5">
+          {lines.length === LOG.length && <CheckCircle2 className="size-3.5 text-brand" />}
+          <span>
+            {lines.length}/{LOG.length} LOGS
+          </span>
         </span>
       </div>
     </div>

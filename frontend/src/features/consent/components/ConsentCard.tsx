@@ -46,7 +46,7 @@ export function ConsentCard() {
 
   if (error) {
     return (
-      <Card>
+      <Card variant="gooey">
         <CardTitle>Authorization error</CardTitle>
         <CardDescription>{error}</CardDescription>
       </Card>
@@ -55,7 +55,7 @@ export function ConsentCard() {
 
   if (!ctx) {
     return (
-      <Card>
+      <Card variant="gooey">
         <CardDescription>Loading request…</CardDescription>
       </Card>
     );
@@ -64,7 +64,7 @@ export function ConsentCard() {
   const scopes = ctx.scope.split(/\s+/).filter(Boolean);
 
   return (
-    <Card className="shadow-brutal-xl">
+    <Card variant="gooey">
       <CardTitle>{ctx.client_name}</CardTitle>
       <CardDescription>
         {ctx.description || `${ctx.client_name} wants to access your id account.`}
@@ -75,7 +75,7 @@ export function ConsentCard() {
         {scopes.map((s) => (
           <li
             key={s}
-            className="flex items-center gap-2 border-2 border-border px-3 py-2 text-sm text-foreground"
+            className="flex items-center gap-2 border border-border/45 px-3 py-2 text-sm text-foreground rounded-xl bg-secondary/30"
           >
             <span className="font-mono text-xs font-bold text-brand">›</span>
             {SCOPE_LABELS[s] ?? s}

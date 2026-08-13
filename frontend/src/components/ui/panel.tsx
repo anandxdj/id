@@ -12,16 +12,16 @@ interface PanelProps extends HTMLAttributes<HTMLDivElement> {
 export function Panel({ className, label, action, children, ...props }: PanelProps) {
   return (
     <div
-      className={cn('border-2 border-border bg-card shadow-brutal', className)}
+      className={cn('border border-border/50 bg-card/70 backdrop-blur-md shadow-md rounded-xl overflow-hidden', className)}
       {...props}
     >
       {(label || action) && (
-        <div className="flex items-center justify-between gap-2 border-b-2 border-border px-4 py-2.5">
-          {label ? <span className="eyebrow text-muted-foreground">{label}</span> : <span />}
+        <div className="flex items-center justify-between gap-2 border-b border-border/40 px-5 py-3">
+          {label ? <span className="eyebrow text-muted-foreground/80">{label}</span> : <span />}
           {action}
         </div>
       )}
-      <div className="p-4">{children}</div>
+      <div className="p-5">{children}</div>
     </div>
   );
 }

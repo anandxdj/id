@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import { Inter, Roboto_Mono } from 'next/font/google';
 import './globals.css';
-import { ThemeProvider } from 'next-themes';
+import { ThemeProvider } from '@/components/ui/theme-provider';
 import { AuthProvider } from '@/features/auth/context/AuthContext';
+import { CursorProvider, Cursor } from '@/components/unlumen-ui/cursor';
 
 const inter = Inter({ variable: '--font-inter', subsets: ['latin'] });
 const robotoMono = Roboto_Mono({ variable: '--font-roboto-mono', subsets: ['latin'] });
@@ -22,9 +23,39 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="min-h-full">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <CursorProvider global>
+              <Cursor />
+              {children}
+            </CursorProvider>
+            <GooeyFilterProvider />
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
   );
 }
+
+const GooeyFilterProvider = () => {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className="absolute size-0 pointer-events-none"
+      version="1.1"
+      aria-hidden="true"
+    >
+      <defs>
+        <filter id="gooey-global">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="5.5" result="blur" />
+          <feColorMatrix
+            in="blur"
+            mode="matrix"
+            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -8"
+            result="gooey"
+          />
+          <feComposite in="SourceGraphic" in2="gooey" operator="atop" />
+        </filter>
+      </defs>
+    </svg>
+  );
+};

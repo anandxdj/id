@@ -8,6 +8,7 @@ const cards = [
   { href: '/account/apps', n: '01', title: 'Connected apps', desc: 'Review and revoke apps you’ve granted access to.' },
   { href: '/account/security', n: '02', title: 'Security', desc: 'See active sessions and sign out of other devices.' },
   { href: '/account/profile', n: '03', title: 'Profile', desc: 'Update your name and details.' },
+  { href: '/account/danger', n: '04', title: 'Danger Zone', desc: 'Manage your data and close your account.' },
 ];
 
 export default function AccountOverviewPage() {
@@ -19,7 +20,7 @@ export default function AccountOverviewPage() {
         title={`Welcome, ${user?.name ?? 'there'}`}
         description="Manage your id account and what it can access."
       />
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c) => (
           <Link
             key={c.href}
