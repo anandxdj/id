@@ -1,6 +1,11 @@
 import mongoose from 'mongoose';
 import { Config } from './config';
 import { Logger } from '../logger/index.logger';
+import {
+  AUTH_CODE_REPLAY_RETENTION_SECONDS,
+  COLLECTIONS,
+  TTL_EXPIRE_AT_DATE,
+} from '../constants/index.constants';
 
 /**
  * Index reconciliation at boot.
@@ -23,13 +28,52 @@ interface TtlTarget {
   expireAfterSeconds: number;
 }
 
+/**
+ * Every TTL index in the system, in one reviewable list.
+ *
+ * The ephemeral collections expire on an absolute `expiresAt` date, so their
+ * `expireAfterSeconds` is 0 — "expire when that date passes". Authorization codes are
+ * the exception: they are retained past expiry so a late replay is still detectable
+ * rather than silently reaped (see the constant's comment).
+ *
+ * None of these indexes enforce anything. They reclaim storage on a ~60 s cycle; the
+ * read paths carry their own `expiresAt: { $gt: now }` predicates.
+ */
 const ttlTargets = (): TtlTarget[] => [
-  { model: 'AuthEvent', field: 'createdAt', expireAfterSeconds: Config.retention.eventSeconds },
+  {
+    model: COLLECTIONS.AUTH_EVENT,
+    field: 'createdAt',
+    expireAfterSeconds: Config.retention.eventSeconds,
+  },
+  { model: COLLECTIONS.SESSION, field: 'expiresAt', expireAfterSeconds: TTL_EXPIRE_AT_DATE },
+  { model: COLLECTIONS.OAUTH_STATE, field: 'expiresAt', expireAfterSeconds: TTL_EXPIRE_AT_DATE },
+  {
+    model: COLLECTIONS.OAUTH_AUTH_REQUEST,
+    field: 'expiresAt',
+    expireAfterSeconds: TTL_EXPIRE_AT_DATE,
+  },
+  {
+    model: COLLECTIONS.OAUTH_AUTH_CODE,
+    field: 'expiresAt',
+    expireAfterSeconds: AUTH_CODE_REPLAY_RETENTION_SECONDS,
+  },
+  {
+    model: COLLECTIONS.OAUTH_ACCESS_TOKEN,
+    field: 'expiresAt',
+    expireAfterSeconds: TTL_EXPIRE_AT_DATE,
+  },
 ];
 
 const reconcileTtl = async (target: TtlTarget): Promise<void> => {
   const model = mongoose.models[target.model];
-  if (!model) return;
+  // A declared target whose model was never imported would reconcile nothing at all.
+  // Say so rather than skipping silently — the failure mode is an unenforced retention.
+  if (!model) {
+    Logger.warn('TTL target model is not registered — retention not reconciled', {
+      model: target.model,
+    });
+    return;
+  }
 
   const collection = model.collection;
   const indexes = (await collection.indexes()) as Array<{
