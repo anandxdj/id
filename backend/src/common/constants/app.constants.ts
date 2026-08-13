@@ -260,7 +260,11 @@ export const RATE_LIMITS = {
   API: { windowMs: 15 * MILLISECONDS.MINUTE, max: 1_000 },
   /** Brute-forceable credential endpoints. */
   AUTH: { windowMs: 15 * MILLISECONDS.MINUTE, max: 50 },
-  /** Token endpoint — a client-secret and authorization-code oracle. */
+  /**
+   * Token endpoint — a client-secret and authorization-code oracle. Since the M4
+   * follow-up this applies only to callers presenting no `client_id`; an identified
+   * client is counted separately, see `TOKEN_RATE_LIMITS`.
+   */
   TOKEN: { windowMs: 15 * MILLISECONDS.MINUTE, max: 120 },
   /** Endpoints that send email or mint action tokens. */
   SENSITIVE: { windowMs: 60 * MILLISECONDS.MINUTE, max: 10 },
@@ -297,6 +301,11 @@ export const CRYPTO = {
     JTI: 16,
     /** Ties every token minted from one authorization code together, for RFC 7009 cascade. */
     GRANT_ID: 18,
+    /**
+     * Client secret entropy. 48 bytes of CSPRNG — the premise the SHA-256 digest in
+     * `CLIENT_SECRET_DIGEST` rests on, so the two must be read together.
+     */
+    CLIENT_SECRET: 48,
   },
   SIGNING_ALG: 'RS256',
 } as const;
@@ -552,3 +561,69 @@ export const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600';
  * along, which is why the reference's revocation (had it existed) could not have done it.
  */
 export const GRANT_ID_PREFIX = 'grant_';
+
+// ── M4 follow-up — client secret digest ───────────────────────────────────────
+/**
+ * A client secret is `CRYPTO.TOKEN_BYTES.CLIENT_SECRET` bytes of CSPRNG output, so a
+ * password KDF is the wrong primitive: the cost of Argon2/bcrypt exists to make brute
+ * force expensive against low-entropy *human* input, and there is nothing here to brute
+ * force. A bare SHA-256 digest is what the rest of this codebase already stores for
+ * every other high-entropy bearer credential (`hashToken` guards access tokens, refresh
+ * tokens and action tokens) — the client secret was the sole outlier.
+ *
+ * This holds *only* while secrets are server-generated. If a "bring your own secret"
+ * registration path is ever added, the input becomes potentially low-entropy and this
+ * decision has to be revisited — a KDF would then be correct again.
+ */
+export const CLIENT_SECRET_DIGEST = {
+  /** Hex length of a SHA-256 digest — used to reject a truncated or corrupt stored value. */
+  HEX_LENGTH: 64,
+  /** Byte length of a SHA-256 digest, i.e. the width `timingSafeEqual` compares. */
+  BYTE_LENGTH: 32,
+  /**
+   * `$2a$` / `$2b$` / `$2y$` — the bcrypt Modular Crypt Format prefix. Stored hashes
+   * carrying it predate this change and are verified by the fallback, then rewritten.
+   */
+  LEGACY_BCRYPT_PREFIX: '$2',
+} as const;
+
+// ── M4 follow-up — token endpoint limiter keying ──────────────────────────────
+/**
+ * Key namespaces inside the `token` limiter scope. Short on purpose: this is a Redis key
+ * component on the hot path, and the two kinds only have to be mutually unambiguous.
+ */
+export const RATE_LIMIT_KEY_KINDS = {
+  /** Keyed by the `client_id` the caller presented. */
+  CLIENT: 'c',
+  /** Keyed by source address, for a caller that presented no `client_id` at all. */
+  IP: 'i',
+} as const;
+
+/** Hex characters of the client-id digest kept in the limiter key. */
+export const RATE_LIMIT_KEY_HASH_LENGTH = 32;
+
+/**
+ * IPv6 is allocated to end sites in blocks (a /64 is the smallest normal subnet), so
+ * keying a limiter on a full /128 lets anyone with a residential prefix mint a fresh
+ * budget per request. Buckets to the first four hextets.
+ */
+export const IPV6_SUBNET_HEXTETS = 4;
+
+export const TOKEN_RATE_LIMITS = {
+  /**
+   * Per presented `client_id`. Deliberately far looser than the old per-IP number: a
+   * `client_id` is an *identified* caller, so abuse is attributable and answerable by
+   * suspension, and the budget no longer has to be small enough to contain an anonymous
+   * attacker. This is the dimension brute force actually runs in — guessing a secret or
+   * an authorization code means targeting one specific client — so it is also the
+   * dimension worth counting.
+   */
+  PER_CLIENT: { windowMs: 15 * MILLISECONDS.MINUTE, max: 600 },
+  /**
+   * Per source address, for requests presenting no `client_id`. Deliberately the original
+   * `RATE_LIMITS.TOKEN` number rather than a copy of it: such a request can never succeed
+   * (it is `invalid_client` before any lookup happens), so this bucket only ever holds
+   * malformed or probing traffic and there is no legitimate load to make room for.
+   */
+  PER_IP: RATE_LIMITS.TOKEN,
+} as const;

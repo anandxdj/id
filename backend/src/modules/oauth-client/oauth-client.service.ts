@@ -1,16 +1,12 @@
-import bcrypt from 'bcryptjs';
 import { randomBase64Url } from '../../common/utils/crypto.utils';
-import {
-  CRYPTO,
-  TOKEN_ENDPOINT_AUTH_METHODS,
-} from '../../common/constants/index.constants';
+import { ClientSecretUtil } from '../../common/utils/clientSecret.utils';
+import { TOKEN_ENDPOINT_AUTH_METHODS } from '../../common/constants/index.constants';
+import { Logger } from '../../common/logger/index.logger';
 import OAuthClient from './oauth-client.model';
 import type { IOAuthClient } from './oauth-client.model';
 
 const makeClientId = (): string =>
   `cl_${randomBase64Url(18).replace(/[^a-zA-Z0-9_-]/g, '')}`.slice(0, 40);
-
-const makeClientSecret = (): string => randomBase64Url(48);
 
 /** M4: protocol metadata accepted at registration. Omitted fields take model defaults. */
 export interface ClientProtocolMetadata {
@@ -64,10 +60,8 @@ const _metadataUpdate = (input: ClientProtocolMetadata): Record<string, unknown>
 export const create = async (input: CreateClientInput): Promise<CreatedClient> => {
   const clientId = makeClientId();
   const publicClient = isPublicMethod(input.tokenEndpointAuthMethod);
-  const rawSecret = publicClient ? undefined : makeClientSecret();
-  const clientSecretHash = rawSecret
-    ? await bcrypt.hash(rawSecret, CRYPTO.LEGACY_BCRYPT_ROUNDS)
-    : undefined;
+  const rawSecret = publicClient ? undefined : ClientSecretUtil.generate();
+  const clientSecretHash = rawSecret ? ClientSecretUtil.digest(rawSecret) : undefined;
 
   const created = await OAuthClient.create({
     clientId,
@@ -98,12 +92,51 @@ export const findByClientId = async (
   return q.lean<IOAuthClient>();
 };
 
+/**
+ * Verify a presented secret against the stored digest.
+ *
+ * `needsUpgrade` reports that the match came from the bcrypt verify-only fallback and
+ * the stored value should be rewritten — see `upgradeSecretDigest`. The caller decides
+ * when to act on it, because this function does not know whether it is running somewhere
+ * a write is appropriate.
+ */
 export const verifyClientSecret = async (
   client: { clientSecretHash?: string } | null,
   plainSecret: string,
+): Promise<{ ok: boolean; needsUpgrade: boolean }> =>
+  ClientSecretUtil.verify(client?.clientSecretHash, plainSecret);
+
+/**
+ * Rewrite a legacy bcrypt hash as a SHA-256 digest, after that hash has just been used
+ * to authenticate successfully. This is the whole migration: no client is re-registered
+ * and no secret changes, so the first successful call after deploy silently moves the
+ * record forward and every call after it takes the fast path.
+ *
+ * The update is a compare-and-swap on the exact hash that was verified. A blind
+ * `$set` would race an administrator rotating the secret in the same window and
+ * overwrite the new credential with a digest of the old one — locking the client out
+ * until it rotated again. Matching on `expectedHash` means a concurrent rotation simply
+ * makes this a no-op, which is the correct outcome: the value we would have written is
+ * already stale. Single-document atomic, so no transaction is involved.
+ */
+export const upgradeSecretDigest = async (
+  clientId: string,
+  expectedHash: string | undefined,
+  plainSecret: string,
 ): Promise<boolean> => {
-  if (!client?.clientSecretHash) return false;
-  return bcrypt.compare(plainSecret, client.clientSecretHash);
+  if (!expectedHash) return false;
+  try {
+    const result = await OAuthClient.updateOne(
+      { clientId, clientSecretHash: expectedHash },
+      { $set: { clientSecretHash: ClientSecretUtil.digest(plainSecret) } },
+    );
+    return result.modifiedCount > 0;
+  } catch (error) {
+    // Never fatal: the client authenticated correctly and is entitled to its token.
+    // Losing the upgrade only means paying the bcrypt cost again next time.
+    Logger.error('Client secret digest upgrade failed', { clientId, error });
+    return false;
+  }
 };
 
 /** List all registered clients, newest first (admin view). Never includes secrets. */
@@ -144,8 +177,8 @@ export const rotateSecret = async (
   if (!existing) return null;
   if (isPublicMethod(existing.tokenEndpointAuthMethod)) return null;
 
-  const rawSecret = makeClientSecret();
-  const clientSecretHash = await bcrypt.hash(rawSecret, CRYPTO.LEGACY_BCRYPT_ROUNDS);
+  const rawSecret = ClientSecretUtil.generate();
+  const clientSecretHash = ClientSecretUtil.digest(rawSecret);
   const updated = await OAuthClient.findOneAndUpdate({ clientId }, { $set: { clientSecretHash } });
   if (!updated) return null;
   return { clientSecret: rawSecret };
@@ -168,8 +201,8 @@ export const upsertSeedClient = async (
   clientId: string,
   input: CreateClientInput,
 ): Promise<{ clientId: string; clientSecret: string; created: boolean }> => {
-  const rawSecret = makeClientSecret();
-  const clientSecretHash = await bcrypt.hash(rawSecret, CRYPTO.LEGACY_BCRYPT_ROUNDS);
+  const rawSecret = ClientSecretUtil.generate();
+  const clientSecretHash = ClientSecretUtil.digest(rawSecret);
   const existing = await OAuthClient.findOne({ clientId });
 
   await OAuthClient.findOneAndUpdate(

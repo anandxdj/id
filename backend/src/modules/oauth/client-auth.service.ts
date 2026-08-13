@@ -1,10 +1,10 @@
 import type { Request } from 'express';
 import {
-  BASIC_PREFIX,
   OAUTH_ERRORS,
   TOKEN_ENDPOINT_AUTH_METHODS,
 } from '../../common/constants/index.constants';
 import type { OAuthErrorCode } from '../../common/constants/index.constants';
+import { ClientCredentialsUtil } from '../../common/utils/clientCredentials.utils';
 import * as clientService from '../oauth-client/oauth-client.service';
 import { ClientPolicy } from './client-policy.service';
 import type { IOAuthClient } from '../oauth-client/oauth-client.model';
@@ -53,46 +53,17 @@ interface PresentedCredentials {
 
 const BASIC_CHALLENGE = 'Basic realm="oauth", charset="UTF-8"';
 
-const _asString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value.length > 0 ? value : undefined;
-
 /**
- * Internal: RFC 6749 §2.3.1 form-urlencodes both halves before base64. `decodeURIComponent`
- * throws on a malformed escape, and an attacker-supplied header must not be able to turn
- * a rejected credential into a 500.
- */
-const _formDecode = (value: string): string | null => {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return null;
-  }
-};
-
-/**
- * Internal: work out what the caller actually presented, without deciding whether it
- * is acceptable. Keeping detection and policy apart is what makes "you used
- * client_secret_post but you are registered for client_secret_basic" expressible.
+ * Internal: classify what the caller presented. Extraction is `ClientCredentialsUtil`'s
+ * job — shared with the token endpoint's rate limiter so the two cannot disagree about
+ * which client a request claims to be — and everything added here is *policy*: which
+ * method that material amounts to, and whether the combination is self-contradictory.
  */
 const _presented = (req: Request): PresentedCredentials => {
-  const body = (req.body ?? {}) as Record<string, unknown>;
-  const bodyId = _asString(body.client_id);
-  const bodySecret = _asString(body.client_secret);
+  const raw = ClientCredentialsUtil.parse(req);
 
-  const header = req.headers.authorization;
-  if (header?.startsWith(BASIC_PREFIX)) {
-    const decoded = Buffer.from(header.slice(BASIC_PREFIX.length), 'base64').toString('utf8');
-    const separator = decoded.indexOf(':');
-    if (separator < 0) {
-      return {
-        method: TOKEN_ENDPOINT_AUTH_METHODS.CLIENT_SECRET_BASIC,
-        usedBasic: true,
-        conflict: 'Malformed Basic credentials',
-      };
-    }
-    const basicId = _formDecode(decoded.slice(0, separator));
-    const basicSecret = _formDecode(decoded.slice(separator + 1));
-    if (basicId === null || basicSecret === null) {
+  if (raw.usedBasic) {
+    if (raw.malformedBasic) {
       return {
         method: TOKEN_ENDPOINT_AUTH_METHODS.CLIENT_SECRET_BASIC,
         usedBasic: true,
@@ -100,34 +71,25 @@ const _presented = (req: Request): PresentedCredentials => {
       };
     }
 
-    if (bodySecret) {
-      return {
-        clientId: basicId,
-        method: TOKEN_ENDPOINT_AUTH_METHODS.CLIENT_SECRET_BASIC,
-        usedBasic: true,
-        conflict: 'More than one client authentication mechanism was used',
-      };
-    }
-    if (bodyId && bodyId !== basicId) {
-      return {
-        clientId: basicId,
-        method: TOKEN_ENDPOINT_AUTH_METHODS.CLIENT_SECRET_BASIC,
-        usedBasic: true,
-        conflict: 'client_id in the body contradicts the Authorization header',
-      };
-    }
-    return {
-      clientId: basicId,
-      clientSecret: basicSecret,
+    const basic = {
+      clientId: raw.clientId,
       method: TOKEN_ENDPOINT_AUTH_METHODS.CLIENT_SECRET_BASIC,
       usedBasic: true,
     };
+
+    if (raw.bodySecret) {
+      return { ...basic, conflict: 'More than one client authentication mechanism was used' };
+    }
+    if (raw.bodyClientId && raw.bodyClientId !== raw.clientId) {
+      return { ...basic, conflict: 'client_id in the body contradicts the Authorization header' };
+    }
+    return { ...basic, clientSecret: raw.clientSecret };
   }
 
   return {
-    clientId: bodyId,
-    clientSecret: bodySecret,
-    method: bodySecret
+    clientId: raw.clientId,
+    clientSecret: raw.clientSecret,
+    method: raw.clientSecret
       ? TOKEN_ENDPOINT_AUTH_METHODS.CLIENT_SECRET_POST
       : TOKEN_ENDPOINT_AUTH_METHODS.NONE,
     usedBasic: false,
@@ -213,10 +175,26 @@ export const ClientAuthService = {
     }
 
     if (registered !== TOKEN_ENDPOINT_AUTH_METHODS.NONE) {
-      const okSecret = presented.clientSecret
+      const verified = presented.clientSecret
         ? await clientService.verifyClientSecret(client, presented.clientSecret)
-        : false;
-      if (!okSecret) {
+        : { ok: false, needsUpgrade: false };
+
+      // Lazy migration off bcrypt, exactly as M2 did for passwords: the plaintext is
+      // only ever in hand during a successful authentication, so that is the only
+      // moment the new digest can be computed. Awaited rather than fired and forgotten
+      // — it is one indexed single-document update that happens once per client in the
+      // system's lifetime, and awaiting keeps it observable and testable. A failure is
+      // logged and ignored: the client authenticated correctly, and refusing it because
+      // a housekeeping write failed would turn a migration into an outage.
+      if (verified.ok && verified.needsUpgrade && presented.clientSecret) {
+        await clientService.upgradeSecretDigest(
+          client.clientId,
+          client.clientSecretHash,
+          presented.clientSecret,
+        );
+      }
+
+      if (!verified.ok) {
         return {
           ok: false,
           status: 401,
