@@ -1,0 +1,31 @@
+# Build context for backend/Dockerfile.
+#
+# The `.env` line is a security control, not an optimisation: that file holds live JWT
+# and OIDC signing secrets plus OAuth client credentials, and a `COPY . .` would bake it
+# into a layer that survives deleting the file in a later one. Secrets reach this image
+# only as runtime environment variables.
+
+# Produced inside the image from the lockfile. A host node_modules also carries
+# platform-specific binaries that would not run on alpine.
+node_modules
+dist
+
+# Secrets and local key material. Production supplies the signing key via
+# OIDC_RSA_PRIVATE_KEY / OIDC_RSA_PRIVATE_KEY_PATH, never a baked-in PEM.
+.env
+.env.*
+cert
+
+# Tests and their helpers are kept out of the context so `tsc` never emits them into
+# dist/ — cheaper and harder to get wrong than deleting compiled tests afterwards.
+**/*.test.ts
+src/common/testing
+
+# No role at runtime.
+.git
+.gitignore
+.dockerignore
+Dockerfile
+*.md
+*.tsbuildinfo
+scripts/*.sh
