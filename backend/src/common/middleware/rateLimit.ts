@@ -1,15 +1,22 @@
+import type { Request } from 'express';
 import rateLimit from 'express-rate-limit';
 import type { ClientRateLimitInfo, Options, Store } from 'express-rate-limit';
 import RedisRateLimitStore from 'rate-limit-redis';
 import type { RedisReply } from 'rate-limit-redis';
 import { redisCommand, RedisUnavailableError } from '../config/redis';
 import { Logger } from '../logger/index.logger';
+import { ClientCredentialsUtil } from '../utils/clientCredentials.utils';
+import { hashToken } from '../utils/crypto.utils';
 import {
   ERROR_CODES,
   ERROR_MESSAGES,
+  IPV6_SUBNET_HEXTETS,
   RATE_LIMITS,
+  RATE_LIMIT_KEY_HASH_LENGTH,
+  RATE_LIMIT_KEY_KINDS,
   RATE_LIMIT_SCOPES,
   REDIS_KEYS,
+  TOKEN_RATE_LIMITS,
 } from '../constants/index.constants';
 
 /**
@@ -123,6 +130,21 @@ const _store = (scope: LimiterScope): Store => {
   };
 };
 
+/**
+ * Internal: the address component of a limiter key.
+ *
+ * Writing a custom `keyGenerator` means taking over the IPv6 problem the library's
+ * default handles: end sites are allocated a /64 or shorter, so a full /128 key hands
+ * anyone with an ordinary residential prefix an unlimited supply of fresh budgets. The
+ * address is bucketed to `IPV6_SUBNET_HEXTETS` so the limit applies to the subnet.
+ * IPv4 has no equivalent slack and is used whole.
+ */
+const _ipKey = (req: Request): string => {
+  const ip = req.ip ?? '';
+  if (!ip.includes(':')) return ip;
+  return ip.split(':').slice(0, IPV6_SUBNET_HEXTETS).join(':');
+};
+
 const base = (
   scope: LimiterScope,
   limit: { windowMs: number; max: number },
@@ -138,7 +160,11 @@ const base = (
   message: { success: false, message, code: ERROR_CODES.TOO_MANY_REQUESTS },
 });
 
-/** Loose global backstop on the whole API surface. */
+/**
+ * Loose global backstop on the whole API surface, keyed on source address. Mounted on
+ * `/oauth` as well as the `/api` prefixes, which is what bounds the number of distinct
+ * keys `tokenLimiter` can be made to create.
+ */
 export const apiLimiter = rateLimit(
   base(RATE_LIMIT_SCOPES.API, RATE_LIMITS.API, ERROR_MESSAGES.TOO_MANY_REQUESTS),
 );
@@ -149,13 +175,67 @@ export const authLimiter = rateLimit(
 );
 
 /**
- * The OAuth token endpoint. Previously unthrottled: it is simultaneously a
- * client-secret oracle and an authorization-code oracle, and it sits outside the
- * `/api` mount that `apiLimiter` covers.
+ * The OAuth token endpoint (and revocation and introspection, which take the same
+ * credential and the same kind of token). Previously unthrottled altogether.
+ *
+ * ## Why not the default IP key
+ *
+ * `express-rate-limit` falls back to the source address, which on this endpoint is an
+ * availability bug rather than a conservative default. Token exchanges are server-to-
+ * server or come from whatever egress the user's network happens to have, so a corporate
+ * NAT, a mobile carrier's CGNAT or a VPN concentrator collapses an entire population
+ * into one budget — and the busier a tenant is, the sooner it locks its own users out of
+ * signing in. The address is not the actor here.
+ *
+ * ## The key
+ *
+ * The presented `client_id` when there is one, the source address otherwise. That puts
+ * the budget on the dimension abuse actually runs in: guessing a secret, a code or a
+ * PKCE verifier means targeting one specific client, and a client is an identified,
+ * suspendable party in a way an IP address is not.
+ *
+ * **The `client_id` is used exactly as presented, with no existence check.** That is the
+ * security property, not laziness: looking it up would make the limiter's behaviour
+ * depend on whether the client is real, and an unauthenticated caller could then
+ * enumerate valid ids by watching which requests get which budget — the endpoint would
+ * leak through its rate limiter what it carefully refuses to leak through its responses
+ * (`ClientAuthService` returns one indistinguishable `invalid_client` for unknown
+ * client, wrong method and bad secret). A made-up `client_id` gets its own bucket with
+ * the same limit and the same headers as a real one, so there is nothing to observe. The
+ * cost is that spraying ids mints Redis keys; `apiLimiter` on the `/oauth` mount already
+ * bounds that per address, and each key is `windowMs`-expiring and O(1).
+ *
+ * The id is hashed into the key rather than interpolated: it is caller-controlled input
+ * heading into a shared Redis keyspace, and a fixed-width digest cannot smuggle a
+ * delimiter or run to an unbounded length. It is not a secrecy measure — a `client_id`
+ * travels in browser URLs.
  */
-export const tokenLimiter = rateLimit(
-  base(RATE_LIMIT_SCOPES.TOKEN, RATE_LIMITS.TOKEN, ERROR_MESSAGES.TOO_MANY_REQUESTS),
-);
+const _tokenLimiterKey = (req: Request): string => {
+  const clientId = ClientCredentialsUtil.presentedClientId(req);
+  if (clientId) {
+    const digest = hashToken(clientId).slice(0, RATE_LIMIT_KEY_HASH_LENGTH);
+    return `${RATE_LIMIT_KEY_KINDS.CLIENT}:${digest}`;
+  }
+  return `${RATE_LIMIT_KEY_KINDS.IP}:${_ipKey(req)}`;
+};
+
+export const tokenLimiter = rateLimit({
+  ...base(RATE_LIMIT_SCOPES.TOKEN, TOKEN_RATE_LIMITS.PER_CLIENT, ERROR_MESSAGES.TOO_MANY_REQUESTS),
+  keyGenerator: _tokenLimiterKey,
+  /**
+   * The two key kinds carry different budgets. An identified client gets a generous one;
+   * a caller presenting no `client_id` at all gets the original tight number, because
+   * such a request cannot succeed — it is `invalid_client` before any lookup — so the
+   * bucket only ever holds malformed or probing traffic.
+   *
+   * This branches on *presence*, never on validity, so it tells an attacker only what
+   * they already know: whether they themselves sent a `client_id`.
+   */
+  limit: (req: Request): number =>
+    ClientCredentialsUtil.presentedClientId(req)
+      ? TOKEN_RATE_LIMITS.PER_CLIENT.max
+      : TOKEN_RATE_LIMITS.PER_IP.max,
+});
 
 /**
  * Endpoints that send mail or mint action tokens (verification, password reset).

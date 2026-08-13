@@ -24,8 +24,11 @@ interface CreateAuthCodeInput {
   redirectUri: string;
   codeChallenge: string;
   codeChallengeMethod: string;
+  /** Granted scope, not requested — see the model's field comment. */
   scope: string;
   nonce?: string;
+  grantId: string;
+  authTime: Date;
 }
 
 export type CodeRedemption =
@@ -47,6 +50,8 @@ export const AuthCodeStore = {
       codeChallengeMethod: input.codeChallengeMethod,
       scope: input.scope,
       nonce: input.nonce,
+      grantId: input.grantId,
+      authTime: input.authTime,
       consumedAt: null,
       createdAt: now,
       expiresAt: new Date(now.getTime() + TTL_SECONDS.AUTH_CODE * MILLISECONDS.SECOND),

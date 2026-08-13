@@ -15,6 +15,8 @@ import type { PromptStack } from './client-prompt.util';
 import User from '../auth/auth.model';
 import type { IUser } from '../auth/auth.model';
 import OAuthClient from '../oauth-client/oauth-client.model';
+import type { IOAuthClient } from '../oauth-client/oauth-client.model';
+import { ClientPolicy } from '../oauth/client-policy.service';
 import AuthEvent from '../events/event.model';
 import type { CreateClientInput } from './dto/create-client.schema';
 import type { UpdateClientInput } from './dto/update-client.schema';
@@ -181,25 +183,30 @@ export const activity = ({
 }) => events.query({ type, clientId, actorUserId, limit: limit ?? 100 });
 
 // ── OAuth clients ──────────────────────────────────────────────────────────────
-const toAdminClient = (c: {
-  clientId: string;
-  clientName: string;
-  redirectUris: string[];
-  description: string;
-  logoUrl: string;
-  suspended: boolean;
-  suspendedReason?: string;
-  createdAt: Date;
-}) => ({
-  clientId: c.clientId,
-  clientName: c.clientName,
-  redirectUris: c.redirectUris,
-  description: c.description,
-  logoUrl: c.logoUrl,
-  suspended: c.suspended,
-  suspendedReason: c.suspendedReason ?? '',
-  createdAt: c.createdAt,
-});
+/**
+ * Admin view of a client. The protocol metadata is projected through `ClientPolicy`
+ * rather than read raw, so a client registered before M4 shows the policy actually in
+ * force for it instead of a row of empty fields.
+ */
+const toAdminClient = (c: IOAuthClient) => {
+  const policy = ClientPolicy.effective(c);
+  return {
+    clientId: c.clientId,
+    clientName: c.clientName,
+    redirectUris: c.redirectUris,
+    description: c.description,
+    logoUrl: c.logoUrl,
+    suspended: c.suspended,
+    suspendedReason: c.suspendedReason ?? '',
+    createdAt: c.createdAt,
+    scopes: policy.scopes,
+    grantTypes: policy.grantTypes,
+    responseTypes: policy.responseTypes,
+    tokenEndpointAuthMethod: policy.tokenEndpointAuthMethod,
+    postLogoutRedirectUris: policy.postLogoutRedirectUris,
+    clientType: policy.clientType,
+  };
+};
 
 export const listClients = async () => (await clientService.list()).map(toAdminClient);
 
@@ -210,6 +217,11 @@ export const createClient = async (input: CreateClientInput, ctx: AdminActionCtx
     redirectUris: input.redirectUris,
     description: input.description,
     logoUrl: input.logoUrl,
+    scopes: input.scopes,
+    grantTypes: input.grantTypes,
+    responseTypes: input.responseTypes,
+    tokenEndpointAuthMethod: input.tokenEndpointAuthMethod,
+    postLogoutRedirectUris: input.postLogoutRedirectUris,
   });
   events.record('admin.client.created', { ...ctx, clientId: created.clientId, meta: { clientName: created.clientName } });
   const configPrompt = buildClientConfigPrompt(
@@ -228,7 +240,9 @@ export const updateClient = async (clientId: string, input: UpdateClientInput, c
 
 export const rotateClientSecret = async (clientId: string, ctx: AdminActionCtx) => {
   const result = await clientService.rotateSecret(clientId);
-  if (!result) throw ApiError.notFound('Client not found');
+  // Also null for a public client, which has no secret to rotate — minting one would
+  // create a credential the token endpoint is obliged to reject.
+  if (!result) throw ApiError.notFound('Client not found, or it is a public client');
   events.record('admin.client.secret_rotated', { ...ctx, clientId });
   return { clientId, clientSecret: result.clientSecret };
 };

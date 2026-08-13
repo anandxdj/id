@@ -21,6 +21,8 @@ interface CreateAuthRequestInput {
   codeChallenge: string;
   codeChallengeMethod: string;
   nonce?: string;
+  prompt?: string;
+  maxAge?: number;
 }
 
 // Internal: "this request is still awaiting a decision". The `expiresAt` predicate is

@@ -14,18 +14,24 @@ export const getConsentContext = async (req: Request, res: Response) => {
 
 export const postConsent = async (req: Request, res: Response) => {
   if (!req.user) throw ApiError.unauthorized('Not authenticated');
-  const data = await oauthService.completeConsent(
-    req.user.id,
-    req.body?.transaction_id,
-    req.body?.decision,
-  );
+  const data = await oauthService.completeConsent({
+    userId: req.user.id,
+    // Carried through so the issued code can record a truthful `auth_time`.
+    sessionId: req.user.sessionId,
+    transactionId: req.body?.transaction_id,
+    decision: req.body?.decision,
+    scope: req.body?.scope,
+  });
   if (data.granted) {
     events.record('consent.granted', {
       actorUserId: req.user.id,
       actorRole: req.user.role,
       clientId: data.client_id,
       ...events.reqContext(req),
+      // The granted scope, not the requested one — this is the audit record that makes
+      // a later "which permissions did they actually approve?" answerable.
+      meta: { scope: data.scope },
     });
   }
-  ApiResponse.ok(res, data.message, { redirect_url: data.redirect_url });
+  ApiResponse.ok(res, data.message, { redirect_url: data.redirect_url, scope: data.scope });
 };

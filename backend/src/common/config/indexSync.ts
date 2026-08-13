@@ -5,6 +5,7 @@ import {
   AUTH_CODE_REPLAY_RETENTION_SECONDS,
   COLLECTIONS,
   REFRESH_TOKEN,
+  SIGNING_KEY,
   TTL_EXPIRE_AT_DATE,
 } from '../constants/index.constants';
 
@@ -83,6 +84,19 @@ const ttlTargets = (): TtlTarget[] => [
     model: COLLECTIONS.REFRESH_TOKEN,
     field: 'expiresAt',
     expireAfterSeconds: REFRESH_TOKEN.REPLAY_RETENTION_SECONDS,
+  },
+  /*
+   * M4. Signing keys expire on `notAfter`, which is null while a key is ACTIVE or NEXT —
+   * Mongo skips documents whose indexed field is not a date, so the key currently
+   * signing can never be reaped out from under the issuer. Retired keys are kept well
+   * past their overlap window so an incident review can still answer "which key signed
+   * this token?"; validity is the explicit `notAfter` predicate in the store, and this
+   * index only reclaims the space afterwards.
+   */
+  {
+    model: COLLECTIONS.OAUTH_SIGNING_KEY,
+    field: 'notAfter',
+    expireAfterSeconds: SIGNING_KEY.RETENTION_AFTER_NOT_AFTER_SECONDS,
   },
 ];
 

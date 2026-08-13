@@ -28,6 +28,12 @@ export const DEV_DEFAULTS = {
   CORS_ORIGIN: 'http://localhost:3000',
   JWT_ACCESS_SECRET: 'dev-only-access-secret-not-for-production',
   JWT_REFRESH_SECRET: 'dev-only-refresh-secret-not-for-production',
+  /**
+   * M4. Deterministic on purpose: every dev machine and test process must derive the
+   * same KEK, or a signing key persisted by one run cannot be decrypted by the next.
+   * Production refuses to boot without a real value (see the superRefine below).
+   */
+  OIDC_KEY_ENCRYPTION_KEY: 'dev-only-oidc-kek-not-for-production',
 } as const;
 
 const DEV_SENTINELS = new Set<string>(Object.values(DEV_DEFAULTS));
@@ -88,6 +94,19 @@ const envSchema = z
     OIDC_KEY_ID: z.string().min(1).default('oidc-1'),
     OIDC_RSA_PRIVATE_KEY: z.string().min(1).optional(),
     OIDC_RSA_PRIVATE_KEY_PATH: z.string().min(1).optional(),
+
+    // ── OIDC signing-key ring (M4) ───────────────────────────────────────────
+    /**
+     * Key-encryption key for the AES-256-GCM envelope around every stored private
+     * signing key. Required in production: without it a database dump hands over the
+     * ability to mint ID tokens for every user of every relying party.
+     */
+    OIDC_KEY_ENCRYPTION_KEY: z.string().min(1).optional(),
+    /**
+     * How long a rotated-out key keeps verifying and stays published in JWKS. Must
+     * exceed the longest-lived signed artefact plus RP JWKS cache lifetime.
+     */
+    OIDC_KEY_ROTATION_OVERLAP_SECONDS: z.coerce.number().int().positive().optional(),
 
     // ── Social connectors ────────────────────────────────────────────────────
     AUTH_CONNECTORS: z.string().optional(),
@@ -228,6 +247,16 @@ const envSchema = z
           path: ['OIDC_RSA_PRIVATE_KEY'],
           message:
             'Provide OIDC_RSA_PRIVATE_KEY or OIDC_RSA_PRIVATE_KEY_PATH in production — ephemeral keys differ per replica, so tokens signed by one instance fail verification on another',
+        });
+      }
+      // M4: the signing keyring is encrypted at rest, and the KEK is the only thing
+      // standing between a database dump and the ability to mint tokens for anyone.
+      if (!env.OIDC_KEY_ENCRYPTION_KEY) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['OIDC_KEY_ENCRYPTION_KEY'],
+          message:
+            'OIDC_KEY_ENCRYPTION_KEY is required in production — stored signing keys are AES-256-GCM encrypted with it, and without it a database dump can mint tokens for every user',
         });
       }
       if (!env.COOKIE_SECURE) {

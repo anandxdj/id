@@ -31,8 +31,17 @@ export interface IOAuthAuthCode {
   redirectUri: string;
   codeChallenge: string;
   codeChallengeMethod: string;
+  /**
+   * The **granted** scope: requested ∩ consented ∩ the client's allowlist, computed at
+   * authorize time. Never the raw request — a client that asks for more than the user
+   * approved gets a code that cannot be exchanged for more than the user approved.
+   */
   scope: string;
   nonce?: string;
+  /** Identity of the authorization grant, inherited by every token minted from it. */
+  grantId?: string;
+  /** When the end user authenticated, for the `auth_time` claim and `max_age`. */
+  authTime?: Date;
   consumedAt: Date | null;
   /** Set once redemption succeeds, so a later replay knows what to revoke. */
   issuedAccessTokenHash?: string;
@@ -54,6 +63,8 @@ const oauthAuthCodeSchema = new mongoose.Schema<IOAuthAuthCode>(
     },
     scope: { type: String, required: true },
     nonce: { type: String },
+    grantId: { type: String },
+    authTime: { type: Date },
     consumedAt: { type: Date, default: null },
     issuedAccessTokenHash: { type: String },
     createdAt: { type: Date, required: true },
