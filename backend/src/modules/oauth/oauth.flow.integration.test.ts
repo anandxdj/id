@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import type { Server } from 'node:http';
 import { pkceChallengeS256, randomBase64Url } from '../../common/utils/crypto.utils';
-import { IntegrationGate } from '../../common/testing/index.testing';
+import { IntegrationGate, TestFixtures } from '../../common/testing/index.testing';
 
 process.env.OIDC_ISSUER ??= 'http://localhost:4000';
 process.env.JWT_ACCESS_SECRET ??= 'test-access-secret';
@@ -50,7 +50,13 @@ before(async () => {
     const { User } = await import('../auth/auth.model');
     const clientService = await import('../oauth-client/oauth-client.service');
     await User.deleteMany({ email: EMAIL });
-    await User.create({ name: 'OIDC Flow', email: EMAIL, password: PASSWORD, isVerified: true });
+    // The model is pure schema now and hashes nothing — fixtures store a real digest.
+    await User.create({
+      name: 'OIDC Flow',
+      email: EMAIL,
+      password: await TestFixtures.passwordHash(PASSWORD),
+      isVerified: true,
+    });
     const created = await clientService.create({ clientName: 'Flow Test', redirectUris: [REDIRECT_URI] });
     clientId = created.clientId;
     clientSecret = created.clientSecret;

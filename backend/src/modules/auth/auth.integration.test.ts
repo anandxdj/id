@@ -107,13 +107,15 @@ test('register → login → me → logout, and revoked session is rejected', as
   });
   assert.equal(reg.status, 201);
 
-  // duplicate register → 409
+  // Registering the same address again is answered identically — a 409 here, which is what
+  // this endpoint used to return, is a working account-existence oracle. The byte-for-byte
+  // comparison lives in `identity.integration.test.ts`; this only pins the status.
   const dup = await fetch(`${base}/api/auth/register`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name: 'Integration Test', ...creds }),
   });
-  assert.equal(dup.status, 409);
+  assert.equal(dup.status, 201);
 
   // wrong password → 401
   const badLogin = await fetch(`${base}/api/auth/login`, {

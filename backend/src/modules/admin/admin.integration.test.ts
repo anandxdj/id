@@ -5,7 +5,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Server } from 'node:http';
-import { IntegrationGate } from '../../common/testing/index.testing';
+import { IntegrationGate, TestFixtures } from '../../common/testing/index.testing';
 
 process.env.OIDC_ISSUER ??= 'http://localhost:4000';
 process.env.JWT_ACCESS_SECRET ??= 'test-access-secret';
@@ -59,9 +59,26 @@ before(async () => {
 
     const { User } = await import('../auth/auth.model');
     await User.deleteMany({ email: { $in: [ADMIN.email, USER.email, VICTIM.email] } });
-    await User.create({ name: 'Admin', email: ADMIN.email, password: ADMIN.password, role: 'admin', isVerified: true });
-    await User.create({ name: 'Plain', email: USER.email, password: USER.password, isVerified: true });
-    await User.create({ name: 'Victim', email: VICTIM.email, password: VICTIM.password, isVerified: true });
+    // The model is pure schema now and hashes nothing — fixtures store a real digest.
+    await User.create({
+      name: 'Admin',
+      email: ADMIN.email,
+      password: await TestFixtures.passwordHash(ADMIN.password),
+      role: 'admin',
+      isVerified: true,
+    });
+    await User.create({
+      name: 'Plain',
+      email: USER.email,
+      password: await TestFixtures.passwordHash(USER.password),
+      isVerified: true,
+    });
+    await User.create({
+      name: 'Victim',
+      email: VICTIM.email,
+      password: await TestFixtures.passwordHash(VICTIM.password),
+      isVerified: true,
+    });
 
     const { createApp } = await import('../../app');
     const app = createApp();
