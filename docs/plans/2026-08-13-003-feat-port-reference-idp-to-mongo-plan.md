@@ -404,3 +404,65 @@ rate-limit store is also still in-process memory — correct to fix once, in M1,
 
 **Verification:** `pnpm typecheck` clean; 54 tests, 26 pass, 0 fail, 28 skipped pending a
 running Mongo (Docker daemon was down locally).
+
+### M1 — Persistence ✅
+
+All six Redis keyspaces are now TTL-indexed Mongo collections, and Redis is a
+cache-and-counter tier holding exactly one thing: shared rate-limit counters. Flushing it
+costs latency and rate-limit accuracy; it cannot log anyone out, lose a session, or forget
+that a code was redeemed.
+
+| Was | Now |
+|---|---|
+| `session:{userId}:{sid}` | `sessions`, `_id` = `sha256(sid)` |
+| `access_token:{hash}` | `oauthAccessTokens`, unique `tokenHash` |
+| `user_client_tokens:{u}:{c}` | **gone** — a `{ userId, clientId }` index on the above |
+| `auth_req:{txn}:{userId}` | `oauthAuthRequests`, unique `transactionId`, CAS claim |
+| `auth_code:{hash}` | `oauthAuthCodes`, unique `codeHash`, CAS claim with pre-image |
+| `oauth_state:{state}` | `oauthStates`, unique `stateHash`, CAS claim |
+
+**TTL is garbage collection, never a security boundary.** The monitor runs on a ~60 s
+cycle, so every read path carries its own `expiresAt: { $gt: now }` predicate and each
+model file says so at the top. Three regression tests set `expiresAt` in the past and
+assert the read path refuses the document while it is demonstrably still present —
+sessions, authorization codes, and social-login state.
+
+**One store module per collection** owns every query against it (`session.store.ts`,
+`oauth-state.store.ts`, `auth-request.store.ts`, `auth-code.store.ts`,
+`access-token.store.ts`), which is what makes "every read filters on expiry" reviewable
+rather than aspirational.
+
+**Redemption keeps the pre-image.** `findOneAndUpdate(… consumedAt: null …, { returnDocument: 'before' })`
+on one document, no transactions anywhere. The pre-image is the point: a replay of a
+genuine code is answered with the same `invalid_grant` as an unknown code, but internally
+it revokes the access token that redemption issued and records an `oauth.code.replayed`
+event. `findOneAndDelete` would have collapsed both cases into "not found" and thrown the
+attack signal away. Authorization codes are therefore retained past expiry
+(`expireAfterSeconds` on `expiresAt`, not 0) so a late replay is still detectable.
+
+Redemption is claimed *before* the binding and PKCE checks: presenting a code spends it
+whatever the outcome, so a stolen code is good for one attempt and the legitimate client's
+redemption then fails loudly instead of succeeding alongside the attacker's.
+
+**The `SCAN` is gone.** `listSessions`/`revokeAll` were O(entire keyspace); they are now
+one indexed `find`/`updateMany` on `{ userId, revokedAt, expiresAt }`. Revocation is a
+soft `revokedAt` + `revokedReason` write rather than a delete, so "when and why was I
+signed out" is answerable. `lastSeenAt` is a single conditional write — no read, no race,
+and no oplog entry when the filter does not match.
+
+**Only hashes at rest.** Session ids, authorization codes, access tokens and social-login
+state are stored SHA-256-hashed. The session API publishes the *handle* (`sha256(sid)`)
+rather than the sid, which stays inside the token it was minted into; clients treat it as
+an opaque string either way, so the contract is unchanged. Consent transaction ids are
+deliberately stored in the clear — not bearer credentials (redemption is scoped to the
+owning user's session) and worth keeping greppable for support.
+
+**Rate limiting moved to Redis** (`rate-limit-redis`, pinned to v4 for
+`express-rate-limit` 7 compatibility), keyed under `id:rl:{tier}:` because the instance may
+be shared. It **fails open**: a store failure logs loudly and lets the request through,
+because a cache being down must not lock every user out of signing in. The cache client
+refuses to queue commands while disconnected and races the rest against a deadline, so a
+dead Redis costs no request latency rather than stalling every login.
+
+**Verification:** `pnpm typecheck` clean; 63 tests, 63 pass, 0 fail, 0 skipped against a
+live one-member replica set and Redis.
