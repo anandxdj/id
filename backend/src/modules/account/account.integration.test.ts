@@ -10,7 +10,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Server } from 'node:http';
-import { IntegrationGate } from '../../common/testing/index.testing';
+import { IntegrationGate, TestFixtures } from '../../common/testing/index.testing';
 
 process.env.OIDC_ISSUER ??= 'http://localhost:4000';
 process.env.JWT_ACCESS_SECRET ??= 'test-access-secret';
@@ -56,7 +56,8 @@ before(async () => {
     const user = await User.create({
       name: 'Me Api',
       email: EMAIL,
-      password: PASSWORD,
+      // The model is pure schema now and hashes nothing — fixtures store a real digest.
+      password: await TestFixtures.passwordHash(PASSWORD),
       isVerified: true,
       jobTitle: 'Engineer',
     });

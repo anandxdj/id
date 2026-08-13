@@ -20,4 +20,8 @@ router.delete('/sessions/:sid', asyncHandler(controller.revokeSession));
 router.get('/profile', asyncHandler(controller.getProfile));
 router.patch('/profile', validate(profileSchema), asyncHandler(controller.updateProfile));
 
+// Close the caller's own account. `DELETE /api/v1/me` — the resource *is* the caller, so
+// there is no path parameter and therefore no way to aim it at somebody else.
+router.delete('/', asyncHandler(controller.deleteAccount));
+
 export default router;

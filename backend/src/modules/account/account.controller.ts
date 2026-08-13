@@ -1,6 +1,8 @@
 import type { Request, Response } from 'express';
 import { ApiResponse } from '../../common/utils/ApiResponse';
 import { ApiError } from '../../common/utils/ApiError';
+import { Logger } from '../../common/logger/index.logger';
+import { COOKIE_NAMES, SUCCESS_MESSAGES } from '../../common/constants/index.constants';
 import { reqContext } from '../events/event.service';
 import * as accountService from './account.service';
 
@@ -50,4 +52,25 @@ export const updateProfile = async (req: Request, res: Response) => {
   const user = requireUser(req);
   const profile = await accountService.updateProfile(user.id, req.body);
   ApiResponse.ok(res, 'Profile updated', profile);
+};
+
+/**
+ * Close the caller's own account.
+ *
+ * The cookies are cleared here rather than in the service: the service does not know it is
+ * being called over HTTP, and every session is revoked by this point anyway, so clearing them
+ * is politeness towards the browser rather than part of the revocation.
+ */
+export const deleteAccount = async (req: Request, res: Response) => {
+  const user = requireUser(req);
+  try {
+    const summary = await accountService.deleteAccount(user.id, reqContext(req));
+    res.clearCookie(COOKIE_NAMES.REFRESH_TOKEN, { path: '/' });
+    res.clearCookie(COOKIE_NAMES.ACCESS_TOKEN, { path: '/' });
+    ApiResponse.ok(res, SUCCESS_MESSAGES.ACCOUNT_DELETED, summary);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    Logger.error('Account closure failed', { error });
+    throw ApiError.internal();
+  }
 };
