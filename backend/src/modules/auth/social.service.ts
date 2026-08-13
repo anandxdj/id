@@ -6,6 +6,7 @@ import type { IUser } from './auth.model';
 import Identity from './identity.model';
 import type { NormalizedProfile } from './connectors/types';
 import { OAuthStateStore } from './oauth-state.store';
+import { UserStore } from './user.store';
 
 interface OAuthStatePayload {
   provider: string;
@@ -43,13 +44,15 @@ export const findOrCreateFromProfile = async (profile: NormalizedProfile): Promi
     providerAccountId: profile.providerAccountId,
   });
   if (existingIdentity) {
-    const user = await User.findById(existingIdentity.userId);
+    // Through the store, so a closed account cannot be resurrected by re-authenticating with
+    // a provider whose identity row somehow outlived the closure.
+    const user = await UserStore.findLiveById(existingIdentity.userId.toString());
     if (user) return user;
     // Orphaned identity (user deleted) — drop it and fall through to recreate.
     await Identity.deleteOne({ _id: existingIdentity._id });
   }
 
-  const email = profile.email?.toLowerCase().trim();
+  const email = UserStore.normalizeEmail(profile.email ?? '');
   if (!email) {
     throw ApiError.badRequest(`${profile.provider} did not return an email address`);
   }
@@ -66,7 +69,7 @@ export const findOrCreateFromProfile = async (profile: NormalizedProfile): Promi
   };
 
   if (profile.emailVerified) {
-    const byEmail = await User.findOne({ email });
+    const byEmail = await UserStore.findLiveByEmail(email);
     if (byEmail) {
       await linkIdentity(byEmail._id);
       if (!byEmail.isVerified) {

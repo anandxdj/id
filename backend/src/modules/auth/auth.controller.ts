@@ -3,15 +3,38 @@ import { ApiResponse } from '../../common/utils/ApiResponse';
 import { ApiError } from '../../common/utils/ApiError';
 import { getOidcIssuer } from '../../common/utils/keys.utils';
 import { Config } from '../../common/config/config';
+import { EmailService } from '../../common/config/email';
+import { DevOutbox, EmailTemplates } from '../../common/email/index.email';
+import { Logger } from '../../common/logger/index.logger';
 import {
   COOKIE_NAMES,
   COOKIE_SAME_SITE,
+  ERROR_CODES,
+  HTTP_STATUS,
   MILLISECONDS,
+  SUCCESS_MESSAGES,
 } from '../../common/constants/index.constants';
 import * as authService from './auth.service';
 import * as events from '../events/event.service';
+import { EmailVerificationService } from './email-verification.service';
+import { PasswordResetService } from './password-reset.service';
 import { listEnabled, getEnabledConnector } from './connectors/registry';
 import { saveOAuthState, consumeOAuthState, findOrCreateFromProfile } from './social.service';
+
+/**
+ * Internal: keep an unexpected failure from describing itself to the caller.
+ *
+ * An `ApiError` is a deliberate, already-safe response and passes through untouched.
+ * Anything else — a Mongo error, a driver assertion — is replaced with a generic
+ * `INVALID_ACTION_TOKEN`, because on a public token-redemption endpoint the *shape* of an
+ * unexpected error is itself a signal: it separates "this token resolved to something and
+ * then something broke" from "this token was never real".
+ */
+const _sanitizeUnexpected = (error: unknown): ApiError => {
+  if (error instanceof ApiError) return error;
+  Logger.error('Unexpected failure on a token redemption path', { error });
+  return ApiError.fromCode(HTTP_STATUS.BAD_REQUEST, ERROR_CODES.INVALID_ACTION_TOKEN);
+};
 
 const refreshCookieOptions = (): CookieOptions => ({
   httpOnly: true,
@@ -25,9 +48,121 @@ const refreshCookieOptions = (): CookieOptions => ({
   maxAge: authService.REFRESH_TTL_SECONDS * MILLISECONDS.SECOND,
 });
 
+/**
+ * Register.
+ *
+ * **The response is byte-identical whether or not the address already has an account.**
+ * Same status, same message, same `data`. A 409 on the taken branch — which is what this
+ * endpoint used to return, and what the reference still returns — is a working
+ * account-existence oracle that needs no cleverness to exploit: submit an address, read the
+ * status code.
+ *
+ * The difference surfaces where it belongs, in an email to the mailbox owner: a verification
+ * link for a new account, or a "someone tried to register your address" notice for an
+ * existing one. Both are dispatched fire-and-forget after the durable write, so the response
+ * time does not separate the branches either.
+ *
+ * No `user` object comes back any more, because there is nothing to return on the taken
+ * branch and a shape that varies is the same oracle in a different coat.
+ */
 export const register = async (req: Request, res: Response) => {
-  const user = await authService.register(req.body);
-  ApiResponse.created(res, 'Account created', { user });
+  // The write itself is allowed to fail loudly: a user told "check your email" whose
+  // account was never created is a worse outcome than a 500.
+  const outcome = await authService.register(req.body);
+
+  try {
+    if (outcome.created && outcome.user) {
+      await EmailVerificationService.issueForNewUser(outcome.user, events.reqContext(req));
+      events.record('register', {
+        actorUserId: outcome.user._id.toString(),
+        actorRole: outcome.user.role,
+        ...events.reqContext(req),
+      });
+    } else if (outcome.existing) {
+      EmailService.dispatch({
+        to: outcome.existing.email,
+        ...EmailTemplates.alreadyRegistered({ name: outcome.existing.name }),
+      });
+    }
+  } catch (error) {
+    // Everything above is post-persist side effects. Letting one of them turn into a 500
+    // would reintroduce the oracle through the error path — a failure on the "account
+    // created" branch answering 500 while the "already exists" branch answers 201 — and it
+    // would report failure for an account that does exist. The resend endpoint is the
+    // recovery path for a verification mail that never went out.
+    Logger.error('Post-registration side effects failed', { error });
+  }
+
+  ApiResponse.created(res, SUCCESS_MESSAGES.REGISTERED, null);
+};
+
+/** Redeem an email-verification token. Does not sign the user in — see the service. */
+export const verifyEmail = async (req: Request, res: Response) => {
+  try {
+    await EmailVerificationService.verify(req.body.token, events.reqContext(req));
+    ApiResponse.ok(res, SUCCESS_MESSAGES.EMAIL_VERIFIED);
+  } catch (error) {
+    throw _sanitizeUnexpected(error);
+  }
+};
+
+/**
+ * Re-issue a verification link. Answers identically for an unknown address, an already
+ * verified one, and a suspended account — see `EmailVerificationService.resend`.
+ */
+export const resendVerification = async (req: Request, res: Response) => {
+  try {
+    await EmailVerificationService.resend(req.body.email, events.reqContext(req));
+  } catch (error) {
+    // Answer 200 anyway. This endpoint's entire contract is that its response carries no
+    // information about the address, and a 500 on the "address exists" branch would carry
+    // exactly that.
+    Logger.error('Verification resend failed', { error });
+  }
+  ApiResponse.ok(res, SUCCESS_MESSAGES.VERIFICATION_SENT);
+};
+
+/** Begin a password reset. Identical response for every address, including on failure. */
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    await PasswordResetService.request(req.body.email, events.reqContext(req));
+  } catch (error) {
+    Logger.error('Password reset request failed', { error });
+  }
+  ApiResponse.ok(res, SUCCESS_MESSAGES.PASSWORD_RESET_SENT);
+};
+
+/** Complete a password reset. Revokes every session and access token the account holds. */
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    await PasswordResetService.reset(req.body, events.reqContext(req));
+    ApiResponse.ok(res, SUCCESS_MESSAGES.PASSWORD_RESET);
+  } catch (error) {
+    throw _sanitizeUnexpected(error);
+  }
+};
+
+/**
+ * Development-only: read the mail this process suppressed because no provider is configured.
+ *
+ * This is the legitimate path to a verification link on a local machine. The alternative the
+ * reference chose — logging the HTML body — puts a working link for every account into the
+ * log pipeline (§2.3-14), which our logger's key-pattern redaction cannot help with, since a
+ * token interpolated into a message string is just a string.
+ *
+ * `DevOutbox.enabled` is false in production *and* false whenever a provider is configured,
+ * so the route is mounted only when both hold and returns nothing if state changes under it.
+ * The buffer is in-memory and dies with the process.
+ */
+export const devOutbox = async (req: Request, res: Response) => {
+  try {
+    if (!DevOutbox.enabled) throw ApiError.notFound(`Route ${req.originalUrl} not found`);
+    const to = typeof req.query.to === 'string' ? req.query.to : undefined;
+    Logger.warn('Development outbox read', { to });
+    ApiResponse.ok(res, 'Suppressed messages', DevOutbox.list(to));
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const login = async (req: Request, res: Response) => {
