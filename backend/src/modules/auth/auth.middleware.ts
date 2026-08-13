@@ -3,12 +3,13 @@ import { ApiError } from '../../common/utils/ApiError';
 import { asyncHandler } from '../../common/utils/asyncHandler';
 import { verifyAccessToken } from '../../common/utils/jwt.utils';
 import { redis } from '../../common/config/redis';
+import { COOKIE_NAMES, REDIS_KEYS } from '../../common/constants/index.constants';
 import { touchSession } from './auth.service';
 import User from './auth.model';
 import type { AuthUser } from '../../types/express';
 
 const sessionKey = (userId: string, sid: string | undefined) =>
-  sid ? `session:${userId}:${sid}` : `session:${userId}`;
+  sid ? `${REDIS_KEYS.SESSION}:${userId}:${sid}` : `${REDIS_KEYS.SESSION}:${userId}`;
 
 const readAccessToken = (req: Request): string | null => {
   const header = req.headers.authorization;
@@ -48,19 +49,19 @@ export const authenticate = asyncHandler(async (req: Request, res: Response, nex
   const whitelisted = await redis.get(sessionKey(decoded.id, decoded.sid));
   if (!whitelisted) {
     res.clearCookie('accessToken', { path: '/' });
-    res.clearCookie('refreshToken', { path: '/' });
+    res.clearCookie(COOKIE_NAMES.REFRESH_TOKEN, { path: '/' });
     throw ApiError.unauthorized('Session expired or revoked');
   }
 
   const user = await User.findById(decoded.id);
   if (!user) {
     res.clearCookie('accessToken', { path: '/' });
-    res.clearCookie('refreshToken', { path: '/' });
+    res.clearCookie(COOKIE_NAMES.REFRESH_TOKEN, { path: '/' });
     throw ApiError.unauthorized('User no longer exists');
   }
   if (user.disabled) {
     res.clearCookie('accessToken', { path: '/' });
-    res.clearCookie('refreshToken', { path: '/' });
+    res.clearCookie(COOKIE_NAMES.REFRESH_TOKEN, { path: '/' });
     throw ApiError.forbidden('This account has been disabled');
   }
 

@@ -1,20 +1,39 @@
 import type { OAuthConnector, NormalizedProfile } from './types';
+import { Config } from '../../../common/config/config';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const USERINFO_URL = 'https://openidconnect.googleapis.com/v1/userinfo';
+
+/**
+ * Narrowing helpers, so no call site needs a non-null assertion. Split by what each
+ * step actually requires: building the authorize URL needs only the public client id;
+ * only the code exchange needs the secret.
+ */
+const requireClientId = (): string => {
+  const { clientId } = Config.connectors.google;
+  if (!clientId) throw new Error('GOOGLE_CLIENT_ID is not configured');
+  return clientId;
+};
+
+const requireCredentials = (): { clientId: string; clientSecret: string } => {
+  const { clientSecret } = Config.connectors.google;
+  if (!clientSecret) throw new Error('GOOGLE_CLIENT_SECRET is not configured');
+  return { clientId: requireClientId(), clientSecret };
+};
 
 export const googleConnector: OAuthConnector = {
   provider: 'google',
   displayName: 'Google',
 
   isConfigured() {
-    return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+    const { clientId, clientSecret } = Config.connectors.google;
+    return Boolean(clientId && clientSecret);
   },
 
   buildAuthorizeUrl(state, redirectUri) {
     const params = new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID!,
+      client_id: requireClientId(),
       redirect_uri: redirectUri,
       response_type: 'code',
       scope: 'openid email profile',
@@ -26,13 +45,14 @@ export const googleConnector: OAuthConnector = {
   },
 
   async exchange(code, redirectUri): Promise<NormalizedProfile> {
+    const { clientId, clientSecret } = requireCredentials();
     const tokenRes = await fetch(TOKEN_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         code,
-        client_id: process.env.GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        client_id: clientId,
+        client_secret: clientSecret,
         redirect_uri: redirectUri,
         grant_type: 'authorization_code',
       }),

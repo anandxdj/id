@@ -2,19 +2,27 @@ import type { Request, Response, CookieOptions } from 'express';
 import { ApiResponse } from '../../common/utils/ApiResponse';
 import { ApiError } from '../../common/utils/ApiError';
 import { getOidcIssuer } from '../../common/utils/keys.utils';
+import { Config } from '../../common/config/config';
+import {
+  COOKIE_NAMES,
+  COOKIE_SAME_SITE,
+  MILLISECONDS,
+} from '../../common/constants/index.constants';
 import * as authService from './auth.service';
 import * as events from '../events/event.service';
 import { listEnabled, getEnabledConnector } from './connectors/registry';
 import { saveOAuthState, consumeOAuthState, findOrCreateFromProfile } from './social.service';
 
-const isProd = () => process.env.NODE_ENV === 'production';
-
 const refreshCookieOptions = (): CookieOptions => ({
   httpOnly: true,
-  secure: isProd(),
-  sameSite: 'lax',
+  // Driven by COOKIE_SECURE, which the config layer forces to `true` in production.
+  // Inferring it from NODE_ENV breaks HTTPS-terminating dev proxies and silently
+  // ships an insecure cookie whenever NODE_ENV is anything unexpected.
+  secure: Config.cookie.secure,
+  sameSite: COOKIE_SAME_SITE,
   path: '/',
-  maxAge: authService.REFRESH_TTL_SECONDS * 1000,
+  ...(Config.cookie.domain ? { domain: Config.cookie.domain } : {}),
+  maxAge: authService.REFRESH_TTL_SECONDS * MILLISECONDS.SECOND,
 });
 
 export const register = async (req: Request, res: Response) => {
@@ -34,7 +42,7 @@ export const login = async (req: Request, res: Response) => {
     throw err;
   }
   const { user, accessToken, refreshToken } = result;
-  res.cookie('refreshToken', refreshToken, refreshCookieOptions());
+  res.cookie(COOKIE_NAMES.REFRESH_TOKEN, refreshToken, refreshCookieOptions());
   events.record('login.success', {
     actorUserId: user._id,
     actorRole: user.role,
@@ -58,7 +66,7 @@ export const logout = async (req: Request, res: Response) => {
       ...events.reqContext(req),
     });
   }
-  res.clearCookie('refreshToken', { path: '/' });
+  res.clearCookie(COOKIE_NAMES.REFRESH_TOKEN, { path: '/' });
   res.clearCookie('accessToken', { path: '/' });
   ApiResponse.ok(res, 'Logged out');
 };
@@ -70,7 +78,7 @@ export const getMe = async (req: Request, res: Response) => {
 };
 
 // ── Social connectors ─────────────────────────────────────────────────────────
-const frontendBase = () => (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+const frontendBase = () => Config.web.loginRedirectBase;
 const callbackUri = (provider: string) => `${getOidcIssuer()}/api/auth/oauth/${provider}/callback`;
 
 /** List the enabled login connectors so the UI can render a button per provider. */
@@ -115,7 +123,7 @@ export const oauthCallback = async (req: Request, res: Response) => {
     const profile = await connector.exchange(code, callbackUri(provider));
     const user = await findOrCreateFromProfile(profile);
     const { accessToken, refreshToken } = await authService.createSession(user, events.reqContext(req));
-    res.cookie('refreshToken', refreshToken, refreshCookieOptions());
+    res.cookie(COOKIE_NAMES.REFRESH_TOKEN, refreshToken, refreshCookieOptions());
     events.record('login.success', {
       actorUserId: user._id.toString(),
       actorRole: user.role,

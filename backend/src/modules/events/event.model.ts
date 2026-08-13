@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import type { Document, Model } from 'mongoose';
 import { EVENT_TYPES } from './event.types';
 import type { EventType } from './event.types';
+import { DEFAULT_EVENT_RETENTION_SECONDS, FIELD_LIMITS } from '../../common/constants/index.constants';
 
 export interface IAuthEvent extends Document {
   type: EventType;
@@ -15,9 +16,16 @@ export interface IAuthEvent extends Document {
   createdAt: Date;
 }
 
-/** Retention window for the activity log. TTL index drops events past this age. */
-const RETENTION_DAYS = Number(process.env.EVENT_RETENTION_DAYS ?? 90);
-const RETENTION_SECONDS = Math.max(1, RETENTION_DAYS) * 24 * 60 * 60;
+/**
+ * Retention window for the activity log; the TTL index drops events past this age.
+ *
+ * A static default is baked in here rather than read from config, because model files
+ * must stay side-effect free at import time (config is validated lazily). The
+ * configured value is applied at boot by `IndexSync`, which issues a `collMod` —
+ * necessary because Mongoose silently refuses to alter an existing TTL index, so
+ * editing this number alone would appear to work and change nothing.
+ */
+const RETENTION_SECONDS = DEFAULT_EVENT_RETENTION_SECONDS;
 
 const authEventSchema = new mongoose.Schema<IAuthEvent>(
   {
@@ -26,8 +34,8 @@ const authEventSchema = new mongoose.Schema<IAuthEvent>(
     actorRole: { type: String },
     clientId: { type: String, index: true },
     targetUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
-    ip: { type: String },
-    ua: { type: String },
+    ip: { type: String, maxlength: FIELD_LIMITS.IP_ADDRESS },
+    ua: { type: String, maxlength: FIELD_LIMITS.USER_AGENT },
     meta: { type: mongoose.Schema.Types.Mixed },
     // explicit createdAt so the TTL index has a stable field to expire on
     createdAt: { type: Date, default: Date.now },
