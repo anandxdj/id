@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, Trash2, X, Lock } from 'lucide-react';
+import { AlertTriangle, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { AccountApi } from '@/features/account/services/accountApi';
+import { AUTH_COPY } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -15,20 +17,18 @@ export function DataControl({ onSoftDeleteInitiated }: DataControlProps) {
   const [showModal, setShowModal] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleDeleteData = async () => {
-    if (confirmText !== 'DELETE') return;
+    if (confirmText !== AUTH_COPY.CONFIRM_DELETE) return;
     setIsDeleting(true);
-    
-    // Simulate API delay for a soft-delete operation
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    
+    setError(null);
     try {
-      // Execute local logout and cookie clearing
+      await AccountApi.deleteAccount();
       await logout();
-      onSoftDeleteInitiated('Your account has been successfully closed and all active sessions disconnected.');
-    } catch (e) {
-      console.error('Logout during deletion failed:', e);
+      onSoftDeleteInitiated(AUTH_COPY.DELETE_OK);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not close the account.');
     } finally {
       setIsDeleting(false);
       setShowModal(false);
@@ -37,14 +37,12 @@ export function DataControl({ onSoftDeleteInitiated }: DataControlProps) {
 
   return (
     <>
-      {/* Dashboard Grid Card for Data Deletion */}
       <div className="flex flex-col justify-between border-2 border-danger bg-card/90 backdrop-blur-md p-6 shadow-brutal transition-all duration-300 hover:-translate-x-0.5 hover:-translate-y-1 hover:shadow-brutal-lg relative overflow-hidden">
         <div className="absolute top-0 right-0 border-l-2 border-b-2 border-danger bg-danger px-2.5 py-0.5 font-mono text-[8px] font-black uppercase text-danger-foreground">
           DANGER ZONE
         </div>
-        
+
         <div className="space-y-4">
-          {/* Card Header Eyebrow */}
           <div className="flex items-center justify-between border-b border-border/40 pb-3">
             <span className="eyebrow text-[10px] text-danger font-black">[ 03_DATA_CONTROL ]</span>
             <span className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground">
@@ -58,15 +56,15 @@ export function DataControl({ onSoftDeleteInitiated }: DataControlProps) {
             </span>
             <div className="min-w-0">
               <h3 className="truncate font-heading text-lg font-bold text-foreground">Wipe My Data</h3>
-              <p className="font-mono text-xs text-muted-foreground mt-0.5">
-                Archival Deletion Request
-              </p>
+              <p className="font-mono text-xs text-muted-foreground mt-0.5">Archival Deletion Request</p>
             </div>
           </div>
 
           <p className="text-xs text-muted-foreground leading-relaxed mt-2">
-            Soft-delete your login credentials, revoke OIDC consent tokens, and terminate active browser sessions.
+            Close the account, revoke OIDC grants, and terminate every active session. This is not reversible from
+            this console.
           </p>
+          {error && <p className="font-mono text-xs font-bold text-danger">{error}</p>}
         </div>
 
         <div className="mt-6 border-t border-border/40 pt-4">
@@ -84,7 +82,6 @@ export function DataControl({ onSoftDeleteInitiated }: DataControlProps) {
         </div>
       </div>
 
-      {/* Confirmation Overlay Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
           <div className="relative border-2 border-border bg-card p-6 shadow-brutal-lg max-w-md w-full animate-in fade-in zoom-in-95 duration-150">
@@ -101,18 +98,20 @@ export function DataControl({ onSoftDeleteInitiated }: DataControlProps) {
             </div>
 
             <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-              This action will immediately mark your user account as disabled (soft-deleted), evict all active sessions, and log you out. You will not be able to log back in.
+              This immediately closes the account, evicts every session, and signs you out. The address can be
+              registered again; this login cannot.
             </p>
 
             <div className="border border-border bg-danger-foreground/20 p-3 mb-4 rounded-sm">
               <p className="text-[11px] font-mono text-danger">
-                To confirm deletion, please type <strong className="font-black underline">DELETE</strong> in the box below.
+                To confirm deletion, please type <strong className="font-black underline">{AUTH_COPY.CONFIRM_DELETE}</strong> in
+                the box below.
               </p>
             </div>
 
             <div className="space-y-4">
               <Input
-                placeholder="Type 'DELETE' here"
+                placeholder={`Type '${AUTH_COPY.CONFIRM_DELETE}' here`}
                 value={confirmText}
                 onChange={(e) => setConfirmText(e.target.value)}
                 disabled={isDeleting}
@@ -132,7 +131,7 @@ export function DataControl({ onSoftDeleteInitiated }: DataControlProps) {
                   variant="danger"
                   className="flex-1 justify-center shadow-brutal-xs"
                   onClick={handleDeleteData}
-                  disabled={confirmText !== 'DELETE' || isDeleting}
+                  disabled={confirmText !== AUTH_COPY.CONFIRM_DELETE || isDeleting}
                 >
                   {isDeleting ? 'Deleting...' : 'Confirm Delete'}
                 </Button>

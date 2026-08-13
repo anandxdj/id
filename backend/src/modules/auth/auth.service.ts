@@ -577,6 +577,12 @@ export const refresh = async (
   // on the grace path, where the pointer is already where it should be.
   await SessionStore.setCurrentRefreshToken(session._id, rotation.record._id);
 
+  events.record('refresh.success', {
+    actorUserId: decoded.id,
+    actorRole: user.role,
+    ...ctx,
+  });
+
   return {
     accessToken: generateAccessToken({ id: decoded.id, sid: decoded.sid, role: user.role }),
     refreshToken: rotation.token,

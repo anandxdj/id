@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client';
+import { API_PATHS } from '@/lib/constants';
 import type {
   ApiEnvelope,
   AdminUser,
@@ -9,73 +10,93 @@ import type {
   CreatedClient,
 } from '@/types';
 
-// ── Users ───────────────────────────────────────────────────────────────────
-export async function listUsers(params: { search?: string; page?: number; limit?: number } = {}) {
-  const q = new URLSearchParams();
-  if (params.search) q.set('search', params.search);
-  if (params.page) q.set('page', String(params.page));
-  if (params.limit) q.set('limit', String(params.limit));
-  const qs = q.toString();
-  return (await apiClient.get<ApiEnvelope<{ items: AdminUser[]; total: number; page: number; limit: number }>>(
-    `/api/admin/users${qs ? `?${qs}` : ''}`,
-  )).data;
-}
+export const AdminApi = {
+  async listUsers(params: { search?: string; page?: number; limit?: number; after?: string } = {}) {
+    const q = new URLSearchParams();
+    if (params.search) q.set('search', params.search);
+    if (params.page) q.set('page', String(params.page));
+    if (params.limit) q.set('limit', String(params.limit));
+    if (params.after) q.set('after', params.after);
+    const qs = q.toString();
+    return (
+      await apiClient.get<
+        ApiEnvelope<{ items: AdminUser[]; total: number; page: number; limit: number; nextCursor: string | null }>
+      >(`${API_PATHS.ADMIN_USERS}${qs ? `?${qs}` : ''}`)
+    ).data;
+  },
 
-export async function getUser(id: string) {
-  return (await apiClient.get<ApiEnvelope<AdminUserDetail>>(`/api/admin/users/${id}`)).data;
-}
+  async getUser(id: string) {
+    return (await apiClient.get<ApiEnvelope<AdminUserDetail>>(API_PATHS.adminUser(id))).data;
+  },
 
-export async function suspendUser(id: string, reason?: string) {
-  return (await apiClient.post<ApiEnvelope<AdminUser>>(`/api/admin/users/${id}/suspend`, { reason })).data;
-}
+  async suspendUser(id: string, reason?: string) {
+    return (await apiClient.post<ApiEnvelope<AdminUser>>(`${API_PATHS.adminUser(id)}/suspend`, { reason })).data;
+  },
 
-export async function unsuspendUser(id: string) {
-  return (await apiClient.post<ApiEnvelope<AdminUser>>(`/api/admin/users/${id}/unsuspend`)).data;
-}
+  async unsuspendUser(id: string) {
+    return (await apiClient.post<ApiEnvelope<AdminUser>>(`${API_PATHS.adminUser(id)}/unsuspend`)).data;
+  },
 
-// ── Monitoring ──────────────────────────────────────────────────────────────
-export async function getMetrics() {
-  return (await apiClient.get<ApiEnvelope<AdminMetrics>>('/api/admin/metrics')).data;
-}
+  async getMetrics() {
+    return (await apiClient.get<ApiEnvelope<AdminMetrics>>(API_PATHS.ADMIN_METRICS)).data;
+  },
 
-export async function getActivity(params: { type?: string; clientId?: string; userId?: string; limit?: number } = {}) {
-  const q = new URLSearchParams();
-  if (params.type) q.set('type', params.type);
-  if (params.clientId) q.set('clientId', params.clientId);
-  if (params.userId) q.set('userId', params.userId);
-  if (params.limit) q.set('limit', String(params.limit));
-  const qs = q.toString();
-  return (await apiClient.get<ApiEnvelope<ActivityEvent[]>>(`/api/admin/activity${qs ? `?${qs}` : ''}`)).data;
-}
+  async getActivity(params: { type?: string; clientId?: string; userId?: string; limit?: number } = {}) {
+    const q = new URLSearchParams();
+    if (params.type) q.set('type', params.type);
+    if (params.clientId) q.set('clientId', params.clientId);
+    if (params.userId) q.set('userId', params.userId);
+    if (params.limit) q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return (
+      await apiClient.get<ApiEnvelope<ActivityEvent[]>>(`${API_PATHS.ADMIN_ACTIVITY}${qs ? `?${qs}` : ''}`)
+    ).data;
+  },
 
-// ── Clients ─────────────────────────────────────────────────────────────────
-export async function listClients() {
-  return (await apiClient.get<ApiEnvelope<AdminClient[]>>('/api/admin/clients')).data;
-}
+  async listClients() {
+    return (await apiClient.get<ApiEnvelope<AdminClient[]>>(API_PATHS.ADMIN_CLIENTS)).data;
+  },
 
-export async function createClient(input: {
-  clientName: string;
-  redirectUris: string[];
-  description?: string;
-  logoUrl?: string;
-  stack?: string;
-}) {
-  return (await apiClient.post<ApiEnvelope<CreatedClient>>('/api/admin/clients', input)).data;
-}
+  async createClient(input: {
+    clientName: string;
+    redirectUris: string[];
+    description?: string;
+    logoUrl?: string;
+    stack?: string;
+  }) {
+    return (await apiClient.post<ApiEnvelope<CreatedClient>>(API_PATHS.ADMIN_CLIENTS, input)).data;
+  },
 
-export async function rotateSecret(clientId: string) {
-  return (await apiClient.post<ApiEnvelope<{ clientId: string; clientSecret: string }>>(
-    `/api/admin/clients/${clientId}/rotate-secret`,
-  )).data;
-}
+  async rotateSecret(clientId: string) {
+    return (
+      await apiClient.post<ApiEnvelope<{ clientId: string; clientSecret: string }>>(
+        `${API_PATHS.adminClient(clientId)}/rotate-secret`,
+      )
+    ).data;
+  },
 
-export async function setClientSuspended(clientId: string, suspended: boolean, reason?: string) {
-  const path = `/api/admin/clients/${clientId}/${suspended ? 'suspend' : 'unsuspend'}`;
-  return (await apiClient.post<ApiEnvelope<AdminClient>>(path, suspended ? { reason } : undefined)).data;
-}
+  async setClientSuspended(clientId: string, suspended: boolean, reason?: string) {
+    const path = `${API_PATHS.adminClient(clientId)}/${suspended ? 'suspend' : 'unsuspend'}`;
+    return (await apiClient.post<ApiEnvelope<AdminClient>>(path, suspended ? { reason } : undefined)).data;
+  },
 
-export async function getConfigPrompt(clientId: string, stack: string) {
-  return (await apiClient.get<ApiEnvelope<{ prompt: string }>>(
-    `/api/admin/clients/${clientId}/config-prompt?stack=${encodeURIComponent(stack)}`,
-  )).data.prompt;
-}
+  async getConfigPrompt(clientId: string, stack: string) {
+    return (
+      await apiClient.get<ApiEnvelope<{ prompt: string }>>(
+        `${API_PATHS.adminClient(clientId)}/config-prompt?stack=${encodeURIComponent(stack)}`,
+      )
+    ).data.prompt;
+  },
+};
+
+export const listUsers = AdminApi.listUsers;
+export const getUser = AdminApi.getUser;
+export const suspendUser = AdminApi.suspendUser;
+export const unsuspendUser = AdminApi.unsuspendUser;
+export const getMetrics = AdminApi.getMetrics;
+export const getActivity = AdminApi.getActivity;
+export const listClients = AdminApi.listClients;
+export const createClient = AdminApi.createClient;
+export const rotateSecret = AdminApi.rotateSecret;
+export const setClientSuspended = AdminApi.setClientSuspended;
+export const getConfigPrompt = AdminApi.getConfigPrompt;

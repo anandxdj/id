@@ -1,7 +1,9 @@
 import { tokenStore } from '@/lib/token-store';
+import { AppConfig } from '@/lib/config';
+import { API_PATHS } from '@/lib/constants';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
-const REFRESH_PATH = '/api/auth/refresh-token';
+const BASE_URL = AppConfig.apiBase;
+const REFRESH_PATH = API_PATHS.REFRESH;
 
 // Shared in-flight refresh so concurrent 401s trigger a single refresh call.
 let refreshPromise: Promise<string | null> | null = null;

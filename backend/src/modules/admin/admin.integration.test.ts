@@ -13,13 +13,16 @@ process.env.JWT_REFRESH_SECRET ??= 'test-refresh-secret';
 process.env.MONGO_DB_NAME ??= 'id_test';
 
 const ADMIN = { email: 'admin-api@tabbio.com', password: 'sup3r-secret-pw' };
+const SUPER = { email: 'super-api@tabbio.com', password: 'sup3r-secret-pw' };
 const USER = { email: 'plain-api@tabbio.com', password: 'sup3r-secret-pw' };
 const VICTIM = { email: 'victim-api@tabbio.com', password: 'sup3r-secret-pw' };
+const TOMBSTONE = { email: 'gone-api@tabbio.com', password: 'sup3r-secret-pw' };
 const REDIRECT = 'http://localhost:3009/cb';
 
 let server: Server | undefined;
 let base = '';
 let adminToken = '';
+let superToken = '';
 let userToken = '';
 let available = false;
 
@@ -58,13 +61,22 @@ before(async () => {
     await withTimeout(getRedis().ping(), 2000);
 
     const { User } = await import('../auth/auth.model');
-    await User.deleteMany({ email: { $in: [ADMIN.email, USER.email, VICTIM.email] } });
+    await User.deleteMany({
+      email: { $in: [ADMIN.email, SUPER.email, USER.email, VICTIM.email, TOMBSTONE.email] },
+    });
     // The model is pure schema now and hashes nothing — fixtures store a real digest.
     await User.create({
       name: 'Admin',
       email: ADMIN.email,
       password: await TestFixtures.passwordHash(ADMIN.password),
       role: 'admin',
+      isVerified: true,
+    });
+    await User.create({
+      name: 'Super',
+      email: SUPER.email,
+      password: await TestFixtures.passwordHash(SUPER.password),
+      role: 'superadmin',
       isVerified: true,
     });
     await User.create({
@@ -90,6 +102,7 @@ before(async () => {
       });
     });
     adminToken = await loginToken(ADMIN);
+    superToken = await loginToken(SUPER);
     userToken = await loginToken(USER);
     available = true;
   } catch (cause) {
@@ -106,7 +119,7 @@ after(async () => {
     const { User } = await import('../auth/auth.model');
     const { OAuthClient } = await import('../oauth-client/oauth-client.model');
     const { Session } = await import('../auth/session.model');
-    const emails = [ADMIN.email, USER.email, VICTIM.email];
+    const emails = [ADMIN.email, SUPER.email, USER.email, VICTIM.email, TOMBSTONE.email];
     const users = await User.find({ email: { $in: emails } }).select('_id');
     await Session.deleteMany({ userId: { $in: users.map((u) => u._id) } });
     await User.deleteMany({ email: { $in: emails } });
@@ -267,3 +280,100 @@ test('getUser returns sessions, apps, and activity; metrics report totals', asyn
   assert.ok(metrics.data.totalUsers >= 3);
   assert.ok(typeof metrics.data.totalClients === 'number');
 });
+
+test('a garbage user id is a 400, not a CastError 500', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+  assert.equal((await as(adminToken)('/api/admin/users/not-an-objectid')).status, 400);
+  assert.equal((await as(adminToken)('/api/admin/clients/nope/suspend', { method: 'POST' })).status, 400);
+});
+
+test('an admin cannot suspend another admin, and cannot re-role themselves', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+  const { User } = await import('../auth/auth.model');
+  const admin = (await User.findOne({ email: ADMIN.email }))!;
+  const peer = await as(adminToken)(`/api/admin/users/${admin._id}/suspend`, {
+    method: 'POST',
+    body: JSON.stringify({ reason: 'no' }),
+  });
+  assert.equal(peer.status, 403);
+  assert.equal((await jsonOf<{ code: string }>(peer)).code, 'CANNOT_TARGET_SELF');
+
+  const superUser = (await User.findOne({ email: SUPER.email }))!;
+  const againstSuper = await as(adminToken)(`/api/admin/users/${superUser._id}/suspend`, {
+    method: 'POST',
+    body: JSON.stringify({ reason: 'no' }),
+  });
+  assert.equal(againstSuper.status, 403);
+  assert.equal((await jsonOf<{ code: string }>(againstSuper)).code, 'CANNOT_TARGET_ADMIN');
+
+  const selfRole = await as(adminToken)(`/api/admin/users/${admin._id}/role`, {
+    method: 'PATCH',
+    body: JSON.stringify({ role: 'user' }),
+  });
+  assert.equal(selfRole.status, 403);
+  assert.equal((await jsonOf<{ code: string }>(selfRole)).code, 'CANNOT_TARGET_SELF');
+});
+
+test('a superadmin can demote a peer admin; last-admin is enforced on the remaining privileged account', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+  const { User } = await import('../auth/auth.model');
+  const { UserStore } = await import('../auth/user.store');
+  const { ADMIN_ROLES } = await import('../../common/constants/index.constants');
+  const admin = (await User.findOne({ email: ADMIN.email }))!;
+  const superUser = (await User.findOne({ email: SUPER.email }))!;
+
+  const demotePeer = await as(superToken)(`/api/admin/users/${admin._id}/role`, {
+    method: 'PATCH',
+    body: JSON.stringify({ role: 'user' }),
+  });
+  assert.equal(demotePeer.status, 200);
+
+  const remaining = await UserStore.countLiveByRoles(ADMIN_ROLES, superUser._id.toString());
+  if (remaining === 0) {
+    const close = await fetch(`${base}/api/me`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${superToken}`, 'content-type': 'application/json' },
+    });
+    assert.equal(close.status, 403);
+    assert.equal((await jsonOf<{ code: string }>(close)).code, 'LAST_ADMIN_PROTECTED');
+  }
+
+  const restore = await as(superToken)(`/api/admin/users/${admin._id}/role`, {
+    method: 'PATCH',
+    body: JSON.stringify({ role: 'admin' }),
+  });
+  assert.equal(restore.status, 200);
+  adminToken = await loginToken(ADMIN);
+});
+
+test('listUsers hides closed accounts and does not count them in metrics', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+  const { UserStore } = await import('../auth/user.store');
+  const { User } = await import('../auth/auth.model');
+  const gone = await User.create({
+    name: 'Gone',
+    email: TOMBSTONE.email,
+    password: await TestFixtures.passwordHash(TOMBSTONE.password),
+    role: 'user',
+    isVerified: true,
+  });
+  await UserStore.softDelete(gone._id.toString());
+
+  const listed = await jsonOf<{ data: { items: Array<{ email: string }>; total: number } }>(
+    await as(adminToken)('/api/admin/users?limit=100'),
+  );
+  assert.equal(
+    listed.data.items.some((u) => u.email === TOMBSTONE.email),
+    false,
+    'tombstone address must not appear in the live list',
+  );
+  assert.equal(
+    listed.data.items.some((u) => u.email.includes(gone._id.toString())),
+    false,
+    'rewritten tombstone mailbox must not appear either',
+  );
+
+  const detail = await as(adminToken)(`/api/admin/users/${gone._id}`);
+  assert.equal(detail.status, 404);
+});
+

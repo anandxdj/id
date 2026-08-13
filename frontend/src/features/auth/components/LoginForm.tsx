@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { resumeOAuth } from '@/lib/oauth-resume';
+import { OAuthErrors } from '@/lib/oauth-errors';
+import { ROUTES } from '@/lib/constants';
 import { getConnectors, connectorStartUrl, type Connector } from '@/features/auth/services/connectorsApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,9 +25,7 @@ export function LoginForm() {
   const [connectors, setConnectors] = useState<Connector[]>([]);
 
   useEffect(() => {
-    // Surface a backend-reported social-login failure (?error=…) and load connectors.
-    const err = searchParams.get('error');
-    if (err) setError(`Sign-in failed (${err}).`);
+    setError(OAuthErrors.messageFor(searchParams.get('error')));
     getConnectors().then(setConnectors).catch(() => setConnectors([]));
   }, [searchParams]);
 
@@ -35,13 +35,16 @@ export function LoginForm() {
     setSubmitting(true);
     try {
       await login(email, password);
-      // If we arrived from an OIDC authorize request, resume it; else go home.
-      if (!resumeOAuth(returnTo)) router.push('/account');
+      if (!resumeOAuth(returnTo)) router.push(ROUTES.ACCOUNT);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
       setSubmitting(false);
     }
   }
+
+  const registerHref = returnTo
+    ? `${ROUTES.REGISTER}?return_to=${encodeURIComponent(returnTo)}`
+    : ROUTES.REGISTER;
 
   return (
     <Card variant="gooey">
@@ -63,7 +66,12 @@ export function LoginForm() {
           />
         </div>
         <div>
-          <Label htmlFor="password">Password</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">Password</Label>
+            <a href={ROUTES.FORGOT_PASSWORD} className="font-mono text-[11px] font-bold underline hover:text-foreground">
+              Forgot password
+            </a>
+          </div>
           <Input
             id="password"
             type="password"
@@ -87,7 +95,7 @@ export function LoginForm() {
 
       <div className="mt-6 text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{' '}
-        <a href={returnTo ? `/register?return_to=${encodeURIComponent(returnTo)}` : '/register'} className="font-bold underline hover:text-foreground">
+        <a href={registerHref} className="font-bold underline hover:text-foreground">
           Sign up
         </a>
       </div>

@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+import { AppConfig } from '@/lib/config';
 
 /**
  * Validate a `return_to` value before redirecting the browser to it. Only the
@@ -9,7 +9,7 @@ export function safeReturnTo(returnTo: string | null | undefined): string | null
   if (!returnTo) return null;
   try {
     const target = new URL(returnTo);
-    const api = new URL(API_BASE);
+    const api = new URL(AppConfig.apiBase);
     const sameOrigin = target.origin === api.origin;
     const isAuthorize = target.pathname === '/oauth/authorize';
     return sameOrigin && isAuthorize ? target.toString() : null;

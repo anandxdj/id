@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { resumeOAuth } from '@/lib/oauth-resume';
+import { AUTH_COPY, ROUTES } from '@/lib/constants';
 import { getConnectors, connectorStartUrl, type Connector } from '@/features/auth/services/connectorsApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,8 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 
 export function RegisterForm() {
-  const { register, login } = useAuth();
-  const router = useRouter();
+  const { register } = useAuth();
   const searchParams = useSearchParams();
   const returnTo = searchParams.get('return_to');
 
@@ -22,6 +21,7 @@ export function RegisterForm() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
   const [connectors, setConnectors] = useState<Connector[]>([]);
 
   useEffect(() => {
@@ -37,25 +37,35 @@ export function RegisterForm() {
       return;
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long.');
+    if (password.length < AUTH_COPY.PASSWORD_MIN_LENGTH) {
+      setError(`Password must be at least ${AUTH_COPY.PASSWORD_MIN_LENGTH} characters long.`);
       return;
     }
 
     setSubmitting(true);
     try {
-      // 1. Create the account
       await register(name, email, password);
-      // 2. Automatically log in the user
-      await login(email, password);
-      // 3. Resume OIDC flow or go to user account dashboard
-      if (!resumeOAuth(returnTo)) {
-        router.push('/account');
-      }
+      setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
       setSubmitting(false);
     }
+  }
+
+  const loginHref = returnTo ? `${ROUTES.LOGIN}?return_to=${encodeURIComponent(returnTo)}` : ROUTES.LOGIN;
+
+  if (done) {
+    return (
+      <Card variant="gooey">
+        <CardTitle>Check your email</CardTitle>
+        <CardDescription>{AUTH_COPY.CHECK_EMAIL}</CardDescription>
+        <div className="mt-6 text-center text-sm text-muted-foreground">
+          <a href={loginHref} className="font-bold underline hover:text-foreground">
+            Back to sign in
+          </a>
+        </div>
+      </Card>
+    );
   }
 
   return (
@@ -124,7 +134,7 @@ export function RegisterForm() {
 
       <div className="mt-6 text-center text-sm text-muted-foreground">
         Already have an account?{' '}
-        <a href={returnTo ? `/login?return_to=${encodeURIComponent(returnTo)}` : '/login'} className="font-bold underline hover:text-foreground">
+        <a href={loginHref} className="font-bold underline hover:text-foreground">
           Sign in
         </a>
       </div>

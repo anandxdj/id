@@ -63,12 +63,30 @@ export function ConsentCard() {
 
   const scopes = ctx.scope.split(/\s+/).filter(Boolean);
 
+  if (ctx.client_suspended) {
+    return (
+      <Card variant="gooey">
+        <CardTitle>{ctx.client_name}</CardTitle>
+        <CardDescription>
+          This application is suspended and cannot receive new authorizations. Contact the operator.
+        </CardDescription>
+      </Card>
+    );
+  }
+
   return (
     <Card variant="gooey">
-      <CardTitle>{ctx.client_name}</CardTitle>
-      <CardDescription>
-        {ctx.description || `${ctx.client_name} wants to access your id account.`}
-      </CardDescription>
+      <div className="flex items-center gap-3">
+        {ctx.logo_url ? (
+          <img src={ctx.logo_url} alt="" className="size-10 border-2 border-border object-contain bg-background" />
+        ) : null}
+        <div>
+          <CardTitle>{ctx.client_name}</CardTitle>
+          <CardDescription>
+            {ctx.description || `${ctx.client_name} wants to access your id account.`}
+          </CardDescription>
+        </div>
+      </div>
 
       <p className="eyebrow mt-6 mb-2 text-muted-foreground">[ REQUESTED_ACCESS ]</p>
       <ul className="space-y-2">

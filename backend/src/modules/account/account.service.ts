@@ -11,6 +11,7 @@ import * as events from '../events/event.service';
 import type { EventContext } from '../events/event.types';
 import { ActionTokenStore } from '../auth/action-token.store';
 import { UserStore } from '../auth/user.store';
+import { AdminGuards } from '../admin/admin.guards';
 import Consent from '../oauth/consent.model';
 import Identity from '../auth/identity.model';
 import User from '../auth/auth.model';
@@ -166,6 +167,7 @@ export const deleteAccount = async (
 ): Promise<DeletionSummary> => {
   const user = await UserStore.findLiveById(userId);
   if (!user) throw ApiError.notFound('User not found');
+  await AdminGuards.assertNotLastAdmin(user);
 
   const providers = (await Identity.find({ userId }).lean()).map((i) => i.provider);
 

@@ -2,6 +2,8 @@ import type { Request } from 'express';
 import mongoose from 'mongoose';
 import AuthEvent from './event.model';
 import type { EventContext, EventType } from './event.types';
+import { Logger } from '../../common/logger/index.logger';
+import { OBJECT_ID, PAGINATION } from '../../common/constants/index.constants';
 
 const toObjectId = (id: string) => new mongoose.Types.ObjectId(id);
 
@@ -26,7 +28,10 @@ export const record = (type: EventType, ctx: EventContext = {}): Promise<void> =
   })
     .then(() => undefined)
     .catch((err: unknown) => {
-      console.warn(`[events] failed to record ${type}:`, (err as Error)?.message);
+      Logger.warn('Failed to record activity event', {
+        type,
+        error: err instanceof Error ? err : new Error(String(err)),
+      });
     });
 
 /** Extract ip + user-agent from a request (Express `trust proxy` resolves X-Forwarded-For). */
@@ -43,10 +48,28 @@ export interface EventQuery {
   from?: Date;
   to?: Date;
   limit?: number;
+  /** Keyset cursor: the `_id` of the last row from the previous page. */
+  after?: string;
 }
 
-/** Read the activity log, newest-first. Capped at 200 rows per call. */
-export const query = async (f: EventQuery = {}) => {
+export interface EventPage {
+  items: Array<{
+    _id: mongoose.Types.ObjectId;
+    type: EventType;
+    createdAt: Date;
+    actorUserId?: mongoose.Types.ObjectId;
+    actorRole?: string;
+    clientId?: string;
+    targetUserId?: mongoose.Types.ObjectId;
+    ip?: string;
+    ua?: string;
+    meta?: Record<string, unknown>;
+  }>;
+  nextCursor: string | null;
+}
+
+/** Read the activity log, newest-first. Capped; keyset via `after`, never OFFSET. */
+export const query = async (f: EventQuery = {}): Promise<EventPage> => {
   const filter: Record<string, unknown> = {};
   if (f.actorUserId) filter.actorUserId = f.actorUserId;
   if (f.targetUserId) filter.targetUserId = f.targetUserId;
@@ -58,10 +81,21 @@ export const query = async (f: EventQuery = {}) => {
       ...(f.to ? { $lte: f.to } : {}),
     };
   }
-  return AuthEvent.find(filter)
-    .sort({ createdAt: -1 })
-    .limit(Math.min(Math.max(f.limit ?? 50, 1), 200))
+  if (f.after && OBJECT_ID.PATTERN.test(f.after)) {
+    filter._id = { $lt: toObjectId(f.after) };
+  }
+  const lim = Math.min(Math.max(f.limit ?? PAGINATION.DEFAULT_LIMIT, 1), PAGINATION.ACTIVITY_MAX_LIMIT);
+  const rows = await AuthEvent.find(filter)
+    .sort({ createdAt: -1, _id: -1 })
+    .limit(lim + 1)
     .lean();
+  const hasMore = rows.length > lim;
+  const items = hasMore ? rows.slice(0, lim) : rows;
+  const last = items[items.length - 1];
+  return {
+    items: items as EventPage['items'],
+    nextCursor: hasMore && last ? String(last._id) : null,
+  };
 };
 
 /** Most recent moment a user touched a given client (token issue or userinfo hit). */

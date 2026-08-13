@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
 import * as events from './event.service';
 import AuthEvent from './event.model';
+import { Logger } from '../../common/logger/index.logger';
 import { IntegrationGate } from '../../common/testing/index.testing';
 
 process.env.MONGO_DB_NAME ??= 'id_test';
@@ -15,11 +16,11 @@ const TAG = 'm1-test-ua'; // tag rows via `ua` so cleanup never touches real dat
 // ── Always-on: record() must never throw, even when the write fails ────────────
 test('record() swallows a DB failure and does not throw', async () => {
   const origCreate = AuthEvent.create;
-  const origWarn = console.warn;
+  const origWarn = Logger.warn;
   let warned = false;
   // @ts-expect-error swap the static for the test
   AuthEvent.create = () => Promise.reject(new Error('boom'));
-  console.warn = () => {
+  Logger.warn = () => {
     warned = true;
   };
   try {
@@ -27,7 +28,7 @@ test('record() swallows a DB failure and does not throw', async () => {
     assert.equal(warned, true, 'a failed write should be logged, not thrown');
   } finally {
     AuthEvent.create = origCreate;
-    console.warn = origWarn;
+    Logger.warn = origWarn;
   }
 });
 
@@ -83,12 +84,13 @@ test('query() filters by type and returns newest-first within the limit', async 
   await events.record('userinfo.access', { actorUserId, clientId, ua: TAG });
 
   const issued = await events.query({ actorUserId, type: 'token.issued' });
-  assert.equal(issued.length, 1);
-  assert.equal(issued[0]!.type, 'token.issued');
+  assert.equal(issued.items.length, 1);
+  assert.equal(issued.items[0]!.type, 'token.issued');
 
   const all = await events.query({ actorUserId, limit: 2 });
-  assert.equal(all.length, 2, 'limit is respected');
-  assert.ok(all[0]!.createdAt >= all[1]!.createdAt, 'newest first');
+  assert.equal(all.items.length, 2, 'limit is respected');
+  assert.ok(all.items[0]!.createdAt >= all.items[1]!.createdAt, 'newest first');
+  assert.equal(typeof all.nextCursor === 'string' || all.nextCursor === null, true);
 });
 
 test('lastUsedByClient() returns the latest touch per client', async (t) => {
