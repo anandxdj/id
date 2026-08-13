@@ -4,6 +4,7 @@ import { connectDB } from '../src/common/config/db';
 import { Config } from '../src/common/config/config';
 import { USER_ROLES } from '../src/common/constants/index.constants';
 import User from '../src/modules/auth/auth.model';
+import { PasswordService } from '../src/modules/auth/password.service';
 
 const DEFAULT_ADMIN_NAME = 'Admin';
 
@@ -32,7 +33,15 @@ async function main() {
     await existing.save();
     console.log(`[seed:admin] Updated existing admin: ${email}`);
   } else {
-    await User.create({ name, email, password, role: USER_ROLES.ADMIN, isVerified: true });
+    // The model no longer hashes on save (it is pure schema now), so the digest is produced
+    // here, by the one service that owns hashing policy.
+    await User.create({
+      name,
+      email,
+      password: await PasswordService.hash(password),
+      role: USER_ROLES.ADMIN,
+      isVerified: true,
+    });
     console.log(`[seed:admin] Created admin: ${email}`);
   }
 

@@ -7,6 +7,7 @@ import { IndexSync } from './src/common/config/indexSync';
 import { Config } from './src/common/config/config';
 import { Logger } from './src/common/logger/index.logger';
 import { initOidcKeys } from './src/common/utils/keys.utils';
+import { PasswordService } from './src/modules/auth/password.service';
 
 /** Server-level timeouts. Without these, a slow client can hold a socket indefinitely. */
 const KEEP_ALIVE_TIMEOUT_MS = 65_000;
@@ -83,6 +84,15 @@ async function main(): Promise<void> {
 
   await initOidcKeys();
   Logger.info('OIDC signing keys ready', { issuer: Config.oidc.issuer, kid: Config.oidc.keyId });
+
+  /*
+   * Load the Argon2 binding, publish the cost actually in force, and measure it — so a
+   * mistuned deployment is visible in the boot log rather than in next week's p99, and the
+   * first real login does not pay for the module load. Also warns when
+   * UV_THREADPOOL_SIZE is left at libuv's default of four, which the hashing shares with
+   * DNS and filesystem work.
+   */
+  await PasswordService.warmup();
 
   const app = createApp();
   const server = app.listen(Config.server.port, () => {
