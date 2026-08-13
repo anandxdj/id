@@ -73,6 +73,22 @@ export const EmailVerificationService = {
   },
 
   /**
+   * A login was refused because the address is not verified — put a fresh link in flight.
+   *
+   * This is what keeps the gate from being a dead end. The login response deliberately
+   * says nothing about verification (it is byte-identical to a wrong password, see
+   * `auth.service.login`), so the *only* channel that carries the real reason is the
+   * mailbox — which is the one party entitled to it, and the one party who can act on it.
+   * The public resend endpoint remains available as the manual path.
+   *
+   * Reached only after a password has already verified, so it is not a mail-bomb
+   * primitive: an attacker who can trigger it already holds the credential.
+   */
+  async notifyLoginBlocked(user: IUser, ctx: ActionCtx = {}): Promise<void> {
+    await _issueAndSend(user, ctx);
+  },
+
+  /**
    * Redeem a verification token.
    *
    * Two things this deliberately does not do. It does not mint a session — verifying an

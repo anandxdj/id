@@ -42,6 +42,7 @@ const THROTTLE_USER = 'm2-throttle@example.com';
 const LEGACY_USER = 'm2-legacy@example.com';
 const CLOSING_USER = 'm2-closing@example.com';
 const UNKNOWN_USER = 'm2-nobody@example.com';
+const GATED_USER = 'm3-gated@example.com';
 const EMAILS = [
   NEW_USER,
   VERIFY_USER,
@@ -50,6 +51,7 @@ const EMAILS = [
   LEGACY_USER,
   CLOSING_USER,
   UNKNOWN_USER,
+  GATED_USER,
 ];
 
 let server: Server | undefined;
@@ -90,6 +92,34 @@ const tokenFrom = async (email: string): Promise<string> => {
 };
 
 const login = (email: string, password: string) => post('/api/auth/login', { email, password });
+
+/**
+ * Mark an address verified straight in the database.
+ *
+ * Login is gated on verification since M3, so any suite that logs a registered account in
+ * has to get it past that gate first. Tests whose subject is something else (reset,
+ * closure, the throttle) take this shortcut deliberately: routing every one of them
+ * through the mailbox would couple unrelated assertions to outbox ordering. The gate
+ * itself is exercised over HTTP, end to end, by the two tests below it.
+ */
+const markVerified = async (email: string): Promise<void> => {
+  const { User } = await import('./auth.model');
+  await User.updateOne({ email }, { $set: { isVerified: true } });
+};
+
+/** Poll a condition that a fire-and-forget write will satisfy shortly. */
+const eventually = async (
+  predicate: () => boolean | Promise<boolean>,
+  what: string,
+  timeoutMs = 3_000,
+): Promise<void> => {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (await predicate()) return;
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+};
 
 /**
  * Reset the Redis rate-limit counters this suite passes through.
@@ -411,11 +441,79 @@ test('a suspended account cannot redeem a token minted before the suspension', a
   await User.deleteMany({ email: LEGACY_USER });
 });
 
+// ── The email-verification gate ───────────────────────────────────────────────
+/**
+ * The gate's security property, which is the whole reason it took a milestone longer than
+ * the verification flow itself.
+ *
+ * The reference answers an unverified login with a distinct `EMAIL_NOT_VERIFIED` 403,
+ * *after* checking the password and *without* incrementing the throttle (§2.3-13). That
+ * is a password oracle — the response changes shape at the exact moment a guess is
+ * correct — and an unthrottled one, so the account it leaks about is also the account you
+ * may guess against indefinitely. Both halves are asserted here.
+ */
+test('an unverified login answers exactly like a wrong password, and still counts', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+  const { LoginThrottle } = await import('./login-throttle.model');
+  const { hashToken } = await import('../../common/utils/crypto.utils');
+  const key = hashToken(GATED_USER);
+
+  await post('/api/auth/register', { name: 'M3 Gated', email: GATED_USER, password: PASSWORD });
+  await LoginThrottle.deleteMany({ _id: key });
+
+  const wrong = await login(GATED_USER, 'definitely-the-wrong-password');
+  const unverified = await login(GATED_USER, PASSWORD);
+
+  assert.equal(unverified.status, 401);
+  assert.equal(unverified.status, wrong.status, 'same status as a wrong password');
+  // Error bodies echo the per-request correlation id, which necessarily differs; that is
+  // the only byte allowed to.
+  const withoutRequestId = (raw: string) => raw.replace(/,"requestId":"[^"]*"/, '');
+  assert.equal(
+    withoutRequestId(unverified.raw),
+    withoutRequestId(wrong.raw),
+    'byte-identical body — no oracle in the response',
+  );
+  assert.equal(unverified.body.code, ERROR_CODES.INVALID_CREDENTIALS);
+  assert.notEqual(unverified.body.code, ERROR_CODES.EMAIL_NOT_VERIFIED);
+
+  // The correct-password attempt was counted like any other failure, so the gate cannot be
+  // probed at an unlimited rate either.
+  const counter = await LoginThrottle.findById(key).lean();
+  assert.ok(counter, 'the throttle recorded the attempts');
+  assert.equal(counter.failedAttempts, 2, 'including the one whose password was correct');
+
+  await LoginThrottle.deleteMany({ _id: key });
+});
+
+test('the blocked login mails a fresh link, and verifying lets the same credentials in', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+  const { DevOutbox } = await import('../../common/email/index.email');
+  const { LoginThrottle } = await import('./login-throttle.model');
+  const { hashToken } = await import('../../common/utils/crypto.utils');
+
+  // The response said nothing, so the mailbox is the only channel carrying the reason —
+  // and it is the one party entitled to it. Dispatched without being awaited, hence the poll.
+  await eventually(
+    () => DevOutbox.list(GATED_USER).length >= 2,
+    'the blocked login to re-issue a verification link',
+  );
+
+  const token = await tokenFrom(GATED_USER);
+  assert.equal((await post('/api/auth/verify-email', { token })).status, 200);
+
+  await LoginThrottle.deleteMany({ _id: hashToken(GATED_USER) });
+  const now = await login(GATED_USER, PASSWORD);
+  assert.equal(now.status, 200, 'the same credentials that were refused now work');
+});
+
 // ── Password reset ────────────────────────────────────────────────────────────
 test('a reset changes the password and revokes every live session', async (t) => {
   if (!available) return t.skip('Mongo/Redis not reachable');
   const { Session } = await import('./session.model');
   const { User } = await import('./auth.model');
+
+  await markVerified(RESET_USER);
 
   // Two devices signed in, so "revoke all" has something to prove.
   const deviceA = await login(RESET_USER, PASSWORD);
@@ -607,6 +705,9 @@ test('closing an account revokes everything and frees the address for re-registr
   const reborn = (await User.findOne({ email: CLOSING_USER, deletedAt: null }))!;
   assert.ok(reborn, 'a genuinely new account exists on the freed address');
   assert.notEqual(reborn._id.toString(), before._id.toString(), 'and it is not the old one');
+  // A genuinely new account starts unverified, so it meets the gate like any other.
+  assert.equal((await login(CLOSING_USER, NEW_PASSWORD)).status, 401, 'gated until verified');
+  await markVerified(CLOSING_USER);
   assert.equal((await login(CLOSING_USER, NEW_PASSWORD)).status, 200);
 });
 

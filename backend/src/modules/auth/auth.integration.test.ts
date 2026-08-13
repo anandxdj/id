@@ -117,6 +117,12 @@ test('register → login → me → logout, and revoked session is rejected', as
   });
   assert.equal(dup.status, 201);
 
+  // Login is gated on verification since M3. This suite's subject is the session
+  // lifecycle, so it clears the gate directly rather than through the mailbox; the gate's
+  // own behaviour is asserted end to end in `identity.integration.test.ts`.
+  const { User } = await import('./auth.model');
+  await User.updateOne({ email: creds.email }, { $set: { isVerified: true } });
+
   // wrong password → 401
   const badLogin = await fetch(`${base}/api/auth/login`, {
     method: 'POST',

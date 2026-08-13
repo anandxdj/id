@@ -20,6 +20,7 @@ import * as events from '../events/event.service';
 import type { EventContext } from '../events/event.types';
 import { AccessTokenStore } from '../oauth/access-token.store';
 import { AccountState } from './account-state';
+import { EmailVerificationService } from './email-verification.service';
 import { PasswordService } from './password.service';
 import { LoginThrottleStore } from './login-throttle.store';
 import { UserStore } from './user.store';
@@ -279,7 +280,8 @@ const _isDuplicateKey = (error: unknown): boolean =>
  *     the counter's presence becomes the oracle that the response text is not.
  *  4. **Account state is checked after the password verifies**, so suspension is not
  *     discoverable without the credential.
- *  5. **Rehash on success**, which is what makes the configured cost a live setting rather
+ *  5. **The email-verification gate answers exactly like a wrong password** — see below.
+ *  6. **Rehash on success**, which is what makes the configured cost a live setting rather
  *     than a value that only applies to accounts created after a deploy.
  */
 export const login = async (
@@ -317,12 +319,55 @@ export const login = async (
   }
 
   AccountState.assertUsable(user);
+  await _assertEmailVerified(user, email, meta);
 
   await LoginThrottleStore.clear(email);
   await _upgradePasswordHash(user, input.password);
 
   const tokens = await createSession(user, meta);
   return { user: toPublic(user), ...tokens };
+};
+
+/**
+ * Internal: refuse an unverified account — without turning the endpoint into an oracle.
+ *
+ * The reference implementation returns a distinct `EMAIL_NOT_VERIFIED` 403 here, *after*
+ * the password has verified and *without* incrementing the throttle (§2.3-13). Both
+ * halves of that are wrong, and together they are worse than either:
+ *
+ *  - The distinct response is a **password oracle**. An attacker guessing against an
+ *    unverified account learns the exact moment they guess right, because the answer
+ *    changes shape from "invalid credentials" to "verify your email". No mailbox access
+ *    required, no timing analysis, just read the status code.
+ *  - Skipping the counter makes that oracle **unthrottled**. Every other failure path
+ *    increments and eventually locks; this one never does, so the account it leaks about
+ *    is also the one account you can guess against forever.
+ *
+ * So this branch is byte-identical to a wrong password — same status, same code, same
+ * message — and it increments the same counter, which means an attacker cannot even use
+ * the *lock* to separate the cases. The only channel that carries the real reason is a
+ * fresh verification link mailed to the address, dispatched without being awaited so the
+ * two branches do not separate on response time either.
+ *
+ * The rejection is therefore only actionable by someone who controls the mailbox, which
+ * is the entire point.
+ */
+const _assertEmailVerified = async (
+  user: IUser,
+  email: string,
+  meta: SessionMeta,
+): Promise<void> => {
+  if (user.isVerified) return;
+
+  await LoginThrottleStore.recordFailure(email);
+
+  // Calls out to the verification service, fire-and-forget: awaiting a token write and a
+  // mail dispatch here would make this branch measurably slower than a wrong password.
+  void EmailVerificationService.notifyLoginBlocked(user, meta).catch((error: unknown) => {
+    Logger.warn('Could not re-issue a verification link for a blocked login', { error });
+  });
+
+  throw ApiError.fromCode(HTTP_STATUS.UNAUTHORIZED, ERROR_CODES.INVALID_CREDENTIALS);
 };
 
 /**

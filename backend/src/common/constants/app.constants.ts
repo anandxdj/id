@@ -167,6 +167,8 @@ export const COLLECTIONS = {
   OAUTH_ACCESS_TOKEN: 'OAuthAccessToken',
   AUTH_ACTION_TOKEN: 'AuthActionToken',
   LOGIN_THROTTLE: 'LoginThrottle',
+  // M3
+  REFRESH_TOKEN: 'RefreshToken',
 } as const;
 
 /**
@@ -182,6 +184,8 @@ export const COLLECTION_NAMES = {
   OAUTH_ACCESS_TOKEN: 'oauthAccessTokens',
   AUTH_ACTION_TOKEN: 'authActionTokens',
   LOGIN_THROTTLE: 'loginThrottles',
+  // M3
+  REFRESH_TOKEN: 'refreshTokens',
 } as const;
 
 /**
@@ -530,4 +534,114 @@ export const HTTP_STATUS = {
   NOT_FOUND: 404,
   CONFLICT: 409,
   TOO_MANY_REQUESTS: 429,
+} as const;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// M3 — Sessions, refresh-token families, and the email-verification gate.
+// Appended as its own section; nothing above this line was reordered.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Email-verification gate ───────────────────────────────────────────────────
+/**
+ * The instant the "you must verify your address before signing in" rule took effect.
+ *
+ * It exists for exactly one reason: to make `scripts/backfill-email-verified.ts`
+ * idempotent in the strong sense. A backfill written as "verify everyone who is not
+ * verified" is idempotent only if you never run it twice — the second run would sweep up
+ * every account created in between, which is precisely the population the gate is meant
+ * to apply to. Pinning the cutoff means the script targets the same fixed set forever,
+ * whether it runs once or a hundred times.
+ *
+ * It is deliberately **not** consulted at login. Two sources of truth for "is this
+ * account gated" is worse than one, and a runtime cutoff would mean the gate silently
+ * never applied to the legacy estate, with no way to ever enforce it for them. The
+ * runtime check is a plain `isVerified`; the backfill is the documented prerequisite for
+ * deploying it.
+ */
+export const EMAIL_VERIFICATION_GATE = {
+  BACKFILL_CUTOFF_ISO: '2026-08-14T00:00:00.000Z',
+} as const;
+
+// ── Refresh tokens ────────────────────────────────────────────────────────────
+/**
+ * Lifecycle of one refresh token within a family.
+ *
+ * `rotated` is not a terminal state in the way `revoked` is: a rotated token is retained
+ * precisely so that presenting it again is *detectable*. That detection is the whole
+ * point of rotation, and it is the thing the reference implementation writes the columns
+ * for and then never reads (§2.3-3).
+ */
+export const REFRESH_TOKEN_STATUS = {
+  ACTIVE: 'active',
+  ROTATED: 'rotated',
+  REVOKED: 'revoked',
+} as const;
+
+export type RefreshTokenStatus =
+  (typeof REFRESH_TOKEN_STATUS)[keyof typeof REFRESH_TOKEN_STATUS];
+
+/**
+ * Outcomes of a rotation attempt. All the failure cases answer the client with one of two
+ * codes; they stay distinct internally because they mean very different things to us —
+ * `REUSE_DETECTED` kills a family, `IN_FLIGHT` asks for a retry.
+ */
+export const REFRESH_OUTCOME = {
+  /** The presented token was active and has been exchanged for a fresh child. */
+  ROTATED: 'rotated',
+  /** Benign concurrent refresh: the same token, replayed inside the grace window. */
+  GRACE_REPLAY: 'grace_replay',
+  /** A rotation is provably underway but its child is not readable yet. Retriable. */
+  IN_FLIGHT: 'in_flight',
+  /** An already-rotated token presented outside the grace window, or two generations back. */
+  REUSE_DETECTED: 'reuse_detected',
+  REVOKED: 'revoked',
+  EXPIRED: 'expired',
+  UNKNOWN: 'unknown',
+} as const;
+
+export type RefreshOutcome = (typeof REFRESH_OUTCOME)[keyof typeof REFRESH_OUTCOME];
+
+export const REFRESH_TOKEN = {
+  /**
+   * How long after rotation the immediately-previous token still answers with its own
+   * successor instead of tripping reuse detection.
+   *
+   * **Not optional.** Multi-tab SPAs and mobile clients routinely fire two refreshes
+   * milliseconds apart, and a client that retries after a dropped response presents a
+   * token it has already spent. Without a grace window every one of those trips reuse
+   * detection and signs a legitimate user out of everything — a self-inflicted DoS that
+   * looks exactly like an attack in the logs.
+   *
+   * Short on purpose: it is a race window, not a validity extension. A stolen token is
+   * usable inside it only if the thief wins a ten-second race against the legitimate
+   * client, which is a far smaller exposure than the thirty days a never-detected
+   * rotation leaves open.
+   */
+  GRACE_MS: 10 * MILLISECONDS.SECOND,
+  /**
+   * How long a spent refresh token is *kept* past the moment it stops being *valid*.
+   *
+   * Same argument as `AUTH_CODE_REPLAY_RETENTION_SECONDS`: validity is the `expiresAt`
+   * predicate every read carries, retention is how long the row survives so a late replay
+   * is still recognisable as a replay rather than degrading into "unknown token". Reaping
+   * on the instant of expiry would throw the attack signal away.
+   */
+  REPLAY_RETENTION_SECONDS: 7 * SECONDS.DAY,
+} as const;
+
+// ── Device naming ─────────────────────────────────────────────────────────────
+/**
+ * Human-readable session labels derived from the user agent.
+ *
+ * The user agent is attacker-controlled text that ends up in a list the account owner
+ * reads, so the derived label is built from `ua-parser-js`'s *parsed* fields rather than
+ * from the raw string, stripped of anything that is not printable, and capped. The raw
+ * string is still stored (capped at `FIELD_LIMITS.USER_AGENT`) because support needs it.
+ */
+export const DEVICE_NAME = {
+  UNKNOWN: 'Unknown device',
+  /** Joins the parsed browser and platform halves: "Chrome on Windows". */
+  JOINER: ' on ',
+  /** Longest UA we will hand to the parser. Beyond this it is noise or an attack. */
+  MAX_PARSE_LENGTH: FIELD_LIMITS.USER_AGENT,
 } as const;
