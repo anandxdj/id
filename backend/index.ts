@@ -65,9 +65,21 @@ async function main(): Promise<void> {
   await connectDB();
   await IndexSync.run();
 
-  // Remove alongside the M1 Redis migration.
-  await getRedis().ping();
-  Logger.info('Redis ping OK');
+  /*
+   * Redis is a cache-and-counter tier now (plan §3, D1) — it backs the shared rate-limit
+   * counters and nothing authoritative. Connect eagerly so the first request does not pay
+   * for the handshake, but never fatally: rate limiting fails open by design, so a Redis
+   * that is down at boot must not stop the identity provider from serving logins.
+   */
+  try {
+    await getRedis().ping();
+    Logger.info('Redis ping OK — rate-limit counters are shared across replicas');
+  } catch (error) {
+    Logger.error(
+      'Redis unreachable at boot — rate limiting will pass requests UNLIMITED until it recovers',
+      { error },
+    );
+  }
 
   await initOidcKeys();
   Logger.info('OIDC signing keys ready', { issuer: Config.oidc.issuer, kid: Config.oidc.keyId });

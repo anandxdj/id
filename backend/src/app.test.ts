@@ -2,6 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Server } from 'node:http';
 import { createApp } from './app';
+import { disconnectRedis } from './common/config/redis';
 
 let server: Server;
 let base: string;
@@ -18,8 +19,12 @@ before(async () => {
   });
 });
 
-after(() => {
+after(async () => {
   server?.close();
+  // Every request here passes through the Redis-backed rate limiter, so a client exists
+  // even though this suite never touches Redis directly. Left open, its reconnect timer
+  // keeps the event loop alive and the run never exits.
+  await disconnectRedis();
 });
 
 test('GET /health is a pure liveness probe — 200 regardless of downstream state', async () => {

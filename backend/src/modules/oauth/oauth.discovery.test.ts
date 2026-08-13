@@ -1,11 +1,16 @@
 /**
- * Discovery, JWKS, and authorize-parameter validation. None of these paths reach
- * Mongo/Redis (validation throws before any client lookup; anonymous authorize never
- * touches the session store), so the whole file runs without external services.
+ * Discovery, JWKS, and authorize-parameter validation. None of these paths reach Mongo
+ * (validation throws before any client lookup; anonymous authorize never touches the
+ * session store), so the whole file runs without a database.
+ *
+ * It does pass through the Redis-backed rate limiter, which fails open when Redis is
+ * absent — so no service is required, but the client it creates has to be closed or its
+ * reconnect timer keeps the event loop alive and the run never exits.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Server } from 'node:http';
+import { disconnectRedis } from '../../common/config/redis';
 
 process.env.OIDC_ISSUER ??= 'http://localhost:4000';
 process.env.JWT_ACCESS_SECRET ??= 'test-access-secret';
@@ -29,7 +34,10 @@ before(async () => {
   });
 });
 
-after(() => server?.close());
+after(async () => {
+  server?.close();
+  await disconnectRedis();
+});
 
 test('discovery document advertises the correct endpoints and capabilities', async () => {
   const res = await fetch(`${base}/.well-known/openid-configuration`);

@@ -32,7 +32,7 @@ const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T> =>
 before(async () => {
   try {
     const mongoose = (await import('mongoose')).default;
-    const { redis } = await import('../../common/config/redis');
+    const { getRedis } = await import('../../common/config/redis');
     await withTimeout(
       mongoose.connect(process.env.MONGO_URI ?? 'mongodb://127.0.0.1:27017', {
         dbName: process.env.MONGO_DB_NAME,
@@ -40,7 +40,9 @@ before(async () => {
       }),
       2000,
     );
-    await withTimeout(redis.ping(), 2000);
+    // Redis no longer stores sessions, but it does back the rate-limit counters every
+    // request here passes through.
+    await withTimeout(getRedis().ping(), 2000);
     const { User } = await import('./auth.model');
     await User.deleteMany({ email: 'itest@tabbio.com' });
 
@@ -65,8 +67,8 @@ before(async () => {
       /* ignore */
     }
     try {
-      const { redis } = await import('../../common/config/redis');
-      redis.disconnect();
+      const { disconnectRedis } = await import('../../common/config/redis');
+      await disconnectRedis();
     } catch {
       /* ignore */
     }
@@ -78,11 +80,14 @@ after(async () => {
   server?.close();
   if (available) {
     const mongoose = (await import('mongoose')).default;
-    const { redis } = await import('../../common/config/redis');
+    const { disconnectRedis } = await import('../../common/config/redis');
     const { User } = await import('./auth.model');
+    const { Session } = await import('./session.model');
+    const user = await User.findOne({ email: 'itest@tabbio.com' });
+    if (user) await Session.deleteMany({ userId: user._id });
     await User.deleteMany({ email: 'itest@tabbio.com' });
     await mongoose.disconnect();
-    redis.disconnect();
+    await disconnectRedis();
   }
 });
 

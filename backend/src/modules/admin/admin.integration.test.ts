@@ -46,7 +46,7 @@ const loginToken = async (creds: { email: string; password: string }): Promise<s
 before(async () => {
   try {
     const mongoose = (await import('mongoose')).default;
-    const { redis } = await import('../../common/config/redis');
+    const { getRedis } = await import('../../common/config/redis');
     await withTimeout(
       mongoose.connect(process.env.MONGO_URI ?? 'mongodb://127.0.0.1:27017', {
         dbName: process.env.MONGO_DB_NAME,
@@ -54,7 +54,8 @@ before(async () => {
       }),
       2000,
     );
-    await withTimeout(redis.ping(), 2000);
+    // Redis backs the rate-limit counters these requests pass through.
+    await withTimeout(getRedis().ping(), 2000);
 
     const { User } = await import('../auth/auth.model');
     await User.deleteMany({ email: { $in: [ADMIN.email, USER.email, VICTIM.email] } });
@@ -84,13 +85,17 @@ after(async () => {
   server?.close();
   if (available) {
     const mongoose = (await import('mongoose')).default;
-    const { redis } = await import('../../common/config/redis');
+    const { disconnectRedis } = await import('../../common/config/redis');
     const { User } = await import('../auth/auth.model');
     const { OAuthClient } = await import('../oauth-client/oauth-client.model');
-    await User.deleteMany({ email: { $in: [ADMIN.email, USER.email, VICTIM.email] } });
+    const { Session } = await import('../auth/session.model');
+    const emails = [ADMIN.email, USER.email, VICTIM.email];
+    const users = await User.find({ email: { $in: emails } }).select('_id');
+    await Session.deleteMany({ userId: { $in: users.map((u) => u._id) } });
+    await User.deleteMany({ email: { $in: emails } });
     await OAuthClient.deleteMany({ clientName: { $in: ['Admin Made', 'Rotate Me', 'Suspend Me'] } });
     await mongoose.disconnect();
-    redis.disconnect();
+    await disconnectRedis();
   }
 });
 
