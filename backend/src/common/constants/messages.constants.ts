@@ -137,6 +137,13 @@ export const REVOKE_REASONS = {
   USER_SUSPENDED: 'user_suspended',
   USER_DELETED: 'user_deleted',
   ADMIN_REVOKED: 'admin_revoked',
+  // ── M4 — OIDC hardening (additive) ──────────────────────────────────────────
+  /** The client called RFC 7009 /oauth/revoke for one of its own tokens. */
+  CLIENT_REVOKED_TOKEN: 'client_revoked_token',
+  /** Collateral of the above: another token minted under the same authorization grant. */
+  GRANT_REVOKED: 'grant_revoked',
+  /** RP-initiated logout (OIDC RP-Initiated Logout 1.0) ended the session. */
+  RP_INITIATED_LOGOUT: 'rp_initiated_logout',
 } as const;
 
 export type RevokeReason = (typeof REVOKE_REASONS)[keyof typeof REVOKE_REASONS];

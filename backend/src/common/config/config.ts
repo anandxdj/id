@@ -1,5 +1,5 @@
 import { Env, DEV_DEFAULTS } from './env';
-import { SECONDS } from '../constants/index.constants';
+import { SECONDS, SIGNING_KEY } from '../constants/index.constants';
 
 /**
  * The single frozen configuration surface. Consume it as `Config.jwt.accessSecret`,
@@ -98,9 +98,20 @@ const build = () => {
 
     oidc: {
       issuer,
+      /**
+       * @deprecated Superseded by the M4 keyring: `kid` is now the RFC 7638 thumbprint
+       * of the key it names, derived rather than configured. Retained so an existing
+       * `.env` does not fail validation; nothing reads it. Remove with the M6 cleanup.
+       */
       keyId: env.OIDC_KEY_ID,
       privateKeyPem: env.OIDC_RSA_PRIVATE_KEY,
       privateKeyPath: env.OIDC_RSA_PRIVATE_KEY_PATH,
+      // ── M4 — signing keyring (additive) ──────────────────────────────────
+      /** KEK for the AES-256-GCM envelope around stored private keys. */
+      keyEncryptionKey: env.OIDC_KEY_ENCRYPTION_KEY ?? DEV_DEFAULTS.OIDC_KEY_ENCRYPTION_KEY,
+      /** Overlap window during which a rotated-out key still verifies and stays in JWKS. */
+      keyRotationOverlapSeconds:
+        env.OIDC_KEY_ROTATION_OVERLAP_SECONDS ?? SIGNING_KEY.DEFAULT_OVERLAP_SECONDS,
     },
 
     connectors: {

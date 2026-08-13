@@ -101,7 +101,15 @@ export const OAUTH_ERRORS = {
   LOGIN_REQUIRED: 'login_required',
   CONSENT_REQUIRED: 'consent_required',
   SERVER_ERROR: 'server_error',
+  /** RFC 7009 §2.2.1 — the endpoint does not support revoking this kind of token. */
+  UNSUPPORTED_TOKEN_TYPE: 'unsupported_token_type',
+  /** RFC 6750 §3.1 — returned by resource endpoints, not by /token. */
+  INVALID_TOKEN: 'invalid_token',
+  /** OIDC Core §3.1.2.6 — prompt=none but interaction is unavoidable. */
+  INTERACTION_REQUIRED: 'interaction_required',
 } as const;
+
+export type OAuthErrorCode = (typeof OAUTH_ERRORS)[keyof typeof OAUTH_ERRORS];
 
 // ── Redis: cache and counters only ────────────────────────────────────────────
 /**
@@ -151,6 +159,7 @@ export const COLLECTIONS = {
   OAUTH_AUTH_REQUEST: 'OAuthAuthRequest',
   OAUTH_AUTH_CODE: 'OAuthAuthCode',
   OAUTH_ACCESS_TOKEN: 'OAuthAccessToken',
+  OAUTH_SIGNING_KEY: 'OAuthSigningKey',
 } as const;
 
 /**
@@ -164,6 +173,7 @@ export const COLLECTION_NAMES = {
   OAUTH_AUTH_REQUEST: 'oauthAuthRequests',
   OAUTH_AUTH_CODE: 'oauthAuthCodes',
   OAUTH_ACCESS_TOKEN: 'oauthAccessTokens',
+  OAUTH_SIGNING_KEY: 'oauthSigningKeys',
 } as const;
 
 /**
@@ -283,6 +293,10 @@ export const CRYPTO = {
     /** Social-login CSRF state. */
     STATE: 24,
     TRANSACTION_ID: 24,
+    /** `jti` on an OIDC access token — collision resistance, not secrecy. */
+    JTI: 16,
+    /** Ties every token minted from one authorization code together, for RFC 7009 cascade. */
+    GRANT_ID: 18,
   },
   SIGNING_ALG: 'RS256',
 } as const;
@@ -318,3 +332,223 @@ export const HEADERS = {
 
 export const BEARER_PREFIX = 'Bearer ';
 export const BASIC_PREFIX = 'Basic ';
+
+// ══════════════════════════════════════════════════════════════════════════════
+// M4 — OIDC hardening
+//
+// Everything below is additive and self-contained so it merges cleanly alongside
+// the other milestones landing in this file. Nothing above was reordered.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Token type discrimination (fixes reference bug §2.3-1) ────────────────────
+/**
+ * The `typ` header that tells one signed artefact from another.
+ *
+ * The reference issues OAuth access tokens that are indistinguishable from its own
+ * first-party session tokens, so any relying party can drive the admin API with a
+ * user's OAuth token. Three things keep ours apart, and all three are checked:
+ *
+ *  1. `typ` — `at+jwt` (RFC 9068) for an OIDC access token, plain `JWT` for an ID
+ *     token. A first-party session token is HS256 and carries neither.
+ *  2. `alg` — OIDC artefacts are RS256 against the published JWKS; first-party
+ *     session tokens are HS256 against a secret that never leaves the server.
+ *  3. `aud` — an access token is audienced at the *resource server* (this issuer),
+ *     an ID token at the *client*. Presenting one where the other is expected fails
+ *     the audience check even before the store lookup.
+ */
+export const TOKEN_TYP = {
+  /** RFC 9068 §2.1 — OAuth 2.0 JWT access token. */
+  OIDC_ACCESS: 'at+jwt',
+  /** OIDC Core §2 — the ID token is an ordinary JWT. */
+  ID_TOKEN: 'JWT',
+} as const;
+
+export const TOKEN_TYPE_BEARER = 'Bearer';
+
+/** RFC 7662 §2.1 / RFC 7009 §2.1 `token_type_hint` values we accept. */
+export const TOKEN_TYPE_HINTS = {
+  ACCESS_TOKEN: 'access_token',
+  REFRESH_TOKEN: 'refresh_token',
+} as const;
+
+// ── Client protocol metadata (plan §4.3) ──────────────────────────────────────
+export const SUPPORTED_GRANT_TYPES: readonly string[] = [GRANT_TYPES.AUTHORIZATION_CODE];
+
+export const SUPPORTED_RESPONSE_TYPES: readonly string[] = [RESPONSE_TYPES.CODE];
+
+export const SUPPORTED_TOKEN_ENDPOINT_AUTH_METHODS: readonly string[] = [
+  TOKEN_ENDPOINT_AUTH_METHODS.CLIENT_SECRET_BASIC,
+  TOKEN_ENDPOINT_AUTH_METHODS.CLIENT_SECRET_POST,
+  TOKEN_ENDPOINT_AUTH_METHODS.NONE,
+];
+
+/**
+ * Registration defaults for a client that does not state its own policy.
+ *
+ * `client_secret_post` rather than the OIDC-specified `client_secret_basic`: this
+ * field is being introduced *with* enforcement, and every client already registered
+ * against this deployment posts its secret in the body. Defaulting to the spec value
+ * would reject all of them on the first request after deploy. New clients should
+ * register `client_secret_basic` explicitly.
+ */
+export const CLIENT_DEFAULTS = {
+  SCOPES: SUPPORTED_SCOPES,
+  GRANT_TYPES: [GRANT_TYPES.AUTHORIZATION_CODE] as readonly string[],
+  RESPONSE_TYPES: [RESPONSE_TYPES.CODE] as readonly string[],
+  TOKEN_ENDPOINT_AUTH_METHOD: TOKEN_ENDPOINT_AUTH_METHODS.CLIENT_SECRET_POST as string,
+} as const;
+
+export const CLIENT_TYPES = {
+  CONFIDENTIAL: 'confidential',
+  PUBLIC: 'public',
+} as const;
+
+// ── prompt / max_age (OIDC Core §3.1.2.1) ─────────────────────────────────────
+export const OIDC_PROMPTS = {
+  NONE: 'none',
+  LOGIN: 'login',
+  CONSENT: 'consent',
+} as const;
+
+export type OidcPrompt = (typeof OIDC_PROMPTS)[keyof typeof OIDC_PROMPTS];
+
+export const SUPPORTED_PROMPTS: readonly string[] = [
+  OIDC_PROMPTS.NONE,
+  OIDC_PROMPTS.LOGIN,
+  OIDC_PROMPTS.CONSENT,
+];
+
+/**
+ * Query parameter appended to the login redirect so the sign-in page knows to force a
+ * fresh credential entry. `prompt` itself is stripped from the `return_to` URL: leaving
+ * it there would re-enter authorize with `prompt=login` still set and loop forever.
+ */
+export const LOGIN_HINT_PARAMS = {
+  RETURN_TO: 'return_to',
+  PROMPT: 'prompt',
+  MAX_AGE: 'max_age',
+} as const;
+
+/** Tolerance when comparing `auth_time + max_age` against now, for clock drift. */
+export const MAX_AGE_LEEWAY_SECONDS = 5;
+
+// ── Signing keys (plan §4.3) ──────────────────────────────────────────────────
+/**
+ * Lifecycle of a signing key.
+ *
+ * `NEXT` is published before it ever signs, so a relying party that caches JWKS has
+ * already seen the key by the time a token arrives bearing its `kid`. `RETIRED` keeps
+ * verifying — and stays in JWKS — until `notAfter`, which is the overlap window that
+ * makes rotation non-breaking. The reference has no such state: its `kid` is the literal
+ * string `"default"` and its key-sync no-ops once a row exists, so rotation is
+ * structurally impossible there.
+ */
+export const SIGNING_KEY_STATUS = {
+  ACTIVE: 'active',
+  NEXT: 'next',
+  RETIRED: 'retired',
+} as const;
+
+export type SigningKeyStatus = (typeof SIGNING_KEY_STATUS)[keyof typeof SIGNING_KEY_STATUS];
+
+export const SIGNING_KEY = {
+  RSA_MODULUS_LENGTH: 2048,
+  /**
+   * How long a rotated-out key keeps verifying and stays published. It must exceed the
+   * longest-lived artefact signed by that key (the ID token) plus any relying party's
+   * JWKS cache lifetime, or rotation silently invalidates tokens still in flight.
+   */
+  DEFAULT_OVERLAP_SECONDS: 7 * 24 * 3_600,
+  /**
+   * Retention *past* `notAfter`, mirroring the authorization-code rationale: validity is
+   * the explicit `notAfter` predicate every read carries, retention is how long the row
+   * survives so "which key signed this?" is still answerable during an incident.
+   */
+  RETENTION_AFTER_NOT_AFTER_SECONDS: 30 * 24 * 3_600,
+  /** AES-256-GCM envelope for the private key at rest. */
+  CIPHER: 'aes-256-gcm',
+  CIPHER_KEY_BYTES: 32,
+  CIPHER_IV_BYTES: 12,
+  /**
+   * Fixed application salt for the scrypt KEK derivation. A constant salt is acceptable
+   * here precisely because the input is a single high-entropy deployment secret rather
+   * than a user-chosen password — there is no rainbow table to build against one value.
+   */
+  KEK_SALT: 'id.oidc.signing-key.kek.v1',
+  /** Verification leeway for `iat`/`exp`, in seconds. */
+  CLOCK_SKEW_SECONDS: 60,
+} as const;
+
+// ── Protocol endpoint paths ───────────────────────────────────────────────────
+/**
+ * Published in the discovery document and baked into every registered client, so these
+ * are protocol surface rather than API surface — deliberately unversioned.
+ */
+export const OIDC_ENDPOINT_PATHS = {
+  BASE: '/oauth',
+  AUTHORIZE: '/authorize',
+  TOKEN: '/token',
+  USERINFO: '/userinfo',
+  JWKS: '/jwks',
+  REVOKE: '/revoke',
+  INTROSPECT: '/introspect',
+  END_SESSION: '/logout',
+} as const;
+
+export const WELL_KNOWN_OPENID_CONFIGURATION = '/.well-known/openid-configuration';
+
+// ── Discovery document values ─────────────────────────────────────────────────
+export const SUBJECT_TYPES: readonly string[] = ['public'];
+
+export const RESPONSE_MODES: readonly string[] = ['query'];
+
+export const SUPPORTED_CLAIMS: readonly string[] = [
+  'sub',
+  'iss',
+  'aud',
+  'exp',
+  'iat',
+  'auth_time',
+  'nonce',
+  'email',
+  'email_verified',
+  'name',
+];
+
+/**
+ * Auth methods the *token* endpoint accepts. Introspection deliberately advertises a
+ * narrower set: see `INTROSPECTION_AUTH_METHODS`.
+ */
+export const REVOCATION_AUTH_METHODS: readonly string[] = SUPPORTED_TOKEN_ENDPOINT_AUTH_METHODS;
+
+/**
+ * Introspection excludes `none`. RFC 7662 §2.1 requires the endpoint to be protected;
+ * accepting an unauthenticated public client would turn it into a token oracle for
+ * anyone who can read a `client_id` out of a browser URL.
+ */
+export const INTROSPECTION_AUTH_METHODS: readonly string[] = [
+  TOKEN_ENDPOINT_AUTH_METHODS.CLIENT_SECRET_BASIC,
+  TOKEN_ENDPOINT_AUTH_METHODS.CLIENT_SECRET_POST,
+];
+
+// ── Cache directives ──────────────────────────────────────────────────────────
+/**
+ * RFC 6749 §5.1 and RFC 7662 §2.2: responses carrying credentials or token state must
+ * not be cached. `Pragma` is redundant for anything speaking HTTP/1.1 but is what the
+ * RFC mandates, and intermediaries that only understand HTTP/1.0 still exist.
+ */
+export const NO_STORE_HEADERS: Readonly<Record<string, string>> = {
+  'Cache-Control': 'no-store',
+  Pragma: 'no-cache',
+};
+
+export const DISCOVERY_CACHE_CONTROL = 'public, max-age=3600';
+
+// ── OAuth grant identity ──────────────────────────────────────────────────────
+/**
+ * Every authorization code mints a `grantId`, inherited by every token issued from it.
+ * RFC 7009 §2.1 says revoking a token SHOULD cascade to everything issued under the
+ * same authorization grant; without a shared identifier there is nothing to cascade
+ * along, which is why the reference's revocation (had it existed) could not have done it.
+ */
+export const GRANT_ID_PREFIX = 'grant_';
