@@ -20,6 +20,12 @@ export const EVENT_TYPES = [
    * the signal that revokes what the first redemption issued (RFC 6749 §4.1.2).
    */
   'oauth.code.replayed',
+  /** RFC 7009 revocation, including whatever the grant cascade caught with it. */
+  'oauth.token.revoked',
+  /** RP-initiated logout terminated the OP session (OIDC RP-Initiated Logout 1.0). */
+  'oauth.logout',
+  /** The signing key was rotated; the previous key entered its overlap window. */
+  'oauth.key.rotated',
   // admin mutations (audited)
   'admin.user.suspended',
   'admin.user.unsuspended',

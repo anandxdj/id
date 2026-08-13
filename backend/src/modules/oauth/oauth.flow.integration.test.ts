@@ -33,7 +33,7 @@ before(async () => {
   try {
     const mongoose = (await import('mongoose')).default;
     const { getRedis } = await import('../../common/config/redis');
-    const { initOidcKeys } = await import('../../common/utils/keys.utils');
+    const { SigningKeyService } = await import('./signing-key.service');
 
     await withTimeout(
       mongoose.connect(process.env.MONGO_URI ?? 'mongodb://127.0.0.1:27017', {
@@ -45,7 +45,12 @@ before(async () => {
     // Codes, requests and tokens are Mongo collections since M1; Redis is here only
     // because it backs the rate-limit counters on /oauth/token.
     await withTimeout(getRedis().ping(), 2000);
-    await initOidcKeys();
+    // The token-endpoint limiter is a shared 15-minute counter keyed on IP, so without
+    // this a second run inside the window inherits the first run's budget.
+    const { OidcHarness } = await import('../../common/testing/index.testing');
+    await OidcHarness.clearRateLimitCounters();
+    // Since M4 the keyring is a Mongo collection, so this must follow the connect.
+    await SigningKeyService.init();
 
     const { User } = await import('../auth/auth.model');
     const clientService = await import('../oauth-client/oauth-client.service');
@@ -53,7 +58,7 @@ before(async () => {
     await User.create({ name: 'OIDC Flow', email: EMAIL, password: PASSWORD, isVerified: true });
     const created = await clientService.create({ clientName: 'Flow Test', redirectUris: [REDIRECT_URI] });
     clientId = created.clientId;
-    clientSecret = created.clientSecret;
+    clientSecret = created.clientSecret!;
 
     const { createApp } = await import('../../app');
     const app = createApp();
@@ -197,11 +202,18 @@ test('authorize → consent → token → userinfo, with PKCE + single-use code'
   assert.equal(tokens.token_type, 'Bearer');
   assert.equal(tokens.expires_in, 900);
 
-  // Verify the ID token signature against the published JWKS + check claims.
-  const { getJwksDocument } = await import('../../common/utils/keys.utils');
-  const jwk = getJwksDocument().keys[0] as crypto.JsonWebKey;
-  const pubKey = crypto.createPublicKey({ key: jwk, format: 'jwk' });
+  // Verify the ID token signature against the published JWKS + check claims. The key is
+  // selected by the token's own `kid` rather than by position: JWKS holds every key that
+  // may still verify, so "the first one" stops being the right one the moment a
+  // rotation leaves a retired key published alongside the active one.
+  const { SigningKeyService } = await import('./signing-key.service');
   const [h, p, s] = tokens.id_token.split('.');
+  const kid = JSON.parse(Buffer.from(h!, 'base64url').toString('utf8')).kid as string;
+  const jwk = SigningKeyService.jwks().keys.find(
+    (key) => (key as { kid: string }).kid === kid,
+  ) as crypto.JsonWebKey;
+  assert.ok(jwk, 'the signing key is published in JWKS under the kid the token names');
+  const pubKey = crypto.createPublicKey({ key: jwk, format: 'jwk' });
   const v = crypto.createVerify('RSA-SHA256');
   v.update(`${h}.${p}`);
   assert.equal(v.verify(pubKey, Buffer.from(s!, 'base64url')), true);
