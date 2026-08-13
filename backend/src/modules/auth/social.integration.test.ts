@@ -115,6 +115,39 @@ test('links a verified profile to an existing user by email', async (t) => {
   assert.equal(identity!.userId.toString(), existing._id.toString());
 });
 
+test('oauth state is single-use, hashed at rest, and refused once expired', async (t) => {
+  if (!available) return t.skip('Mongo not reachable');
+  const { saveOAuthState, consumeOAuthState } = await import('./social.service');
+  const { OAuthState } = await import('./oauth-state.model');
+  const { hashToken } = await import('../../common/utils/crypto.utils');
+
+  const state = await saveOAuthState('google', 'https://app.example.com/after');
+
+  // The state travels through a third party, so only its hash is persisted.
+  assert.equal(await OAuthState.findOne({ stateHash: state }).lean(), null, 'raw state is not stored');
+  const stored = (await OAuthState.findOne({ stateHash: hashToken(state) }).lean())!;
+  assert.ok(stored, 'stored under its hash');
+  assert.equal(stored.consumedAt, null);
+
+  const first = await consumeOAuthState(state);
+  assert.equal(first?.provider, 'google');
+  assert.equal(first?.returnTo, 'https://app.example.com/after');
+  assert.equal(await consumeOAuthState(state), null, 'a replayed state is refused');
+  assert.equal(await consumeOAuthState('never-issued'), null, 'an unknown state is refused');
+
+  // Expired but not yet reaped — the TTL monitor runs on a ~60 s cycle, so the read path
+  // has to enforce expiry itself.
+  const expired = await saveOAuthState('github');
+  await OAuthState.updateOne(
+    { stateHash: hashToken(expired) },
+    { $set: { expiresAt: new Date(Date.now() - 60_000) } },
+  );
+  assert.ok(await OAuthState.findOne({ stateHash: hashToken(expired) }).lean(), 'document is still present');
+  assert.equal(await consumeOAuthState(expired), null, 'and is refused anyway');
+
+  await OAuthState.deleteMany({ stateHash: { $in: [hashToken(state), hashToken(expired)] } });
+});
+
 test('does NOT link an UNVERIFIED profile to an existing user (creates separate)', async (t) => {
   if (!available) return t.skip('Mongo not reachable');
   const { findOrCreateFromProfile } = await import('./social.service');

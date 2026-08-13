@@ -1,34 +1,33 @@
 import { ApiError } from '../../common/utils/ApiError';
-import { redis } from '../../common/config/redis';
 import { randomBase64Url } from '../../common/utils/crypto.utils';
+import { CRYPTO } from '../../common/constants/index.constants';
 import User from './auth.model';
 import type { IUser } from './auth.model';
 import Identity from './identity.model';
 import type { NormalizedProfile } from './connectors/types';
+import { OAuthStateStore } from './oauth-state.store';
 
-const STATE_TTL_SECONDS = 600; // 10 min to complete the round-trip
-
-interface OAuthState {
+interface OAuthStatePayload {
   provider: string;
   returnTo?: string;
 }
 
 /** Persist a one-time CSRF state mapped to the provider + post-login return target. */
 export const saveOAuthState = async (provider: string, returnTo?: string): Promise<string> => {
-  const state = randomBase64Url(24);
-  const payload: OAuthState = { provider, returnTo };
-  await redis.set(`oauth_state:${state}`, JSON.stringify(payload), 'EX', STATE_TTL_SECONDS);
+  const state = randomBase64Url(CRYPTO.TOKEN_BYTES.STATE);
+  // Calls out to the state store, which persists only a hash of the state.
+  await OAuthStateStore.create({ state, provider, returnTo });
   return state;
 };
 
-/** Validate and consume a state (single use). Returns null if missing/expired. */
-export const consumeOAuthState = async (state: string | undefined): Promise<OAuthState | null> => {
+/** Validate and consume a state (single use, atomic). Returns null if unusable. */
+export const consumeOAuthState = async (
+  state: string | undefined,
+): Promise<OAuthStatePayload | null> => {
   if (!state) return null;
-  const key = `oauth_state:${state}`;
-  const json = await redis.get(key);
-  if (!json) return null;
-  await redis.del(key);
-  return JSON.parse(json) as OAuthState;
+  const claimed = await OAuthStateStore.consume(state);
+  if (!claimed) return null;
+  return { provider: claimed.provider, returnTo: claimed.returnTo };
 };
 
 /**
