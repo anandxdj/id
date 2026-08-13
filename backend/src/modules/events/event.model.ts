@@ -48,6 +48,10 @@ authEventSchema.index({ createdAt: 1 }, { expireAfterSeconds: RETENTION_SECONDS 
 // Common read path: a user's activity feed, newest first.
 authEventSchema.index({ actorUserId: 1, createdAt: -1 });
 authEventSchema.index({ actorUserId: 1, clientId: 1, createdAt: -1 });
+authEventSchema.index({ targetUserId: 1, createdAt: -1 });
+authEventSchema.index({ type: 1, createdAt: -1 });
+// Keyset pagination on the global feed: `{ createdAt, _id }` not OFFSET.
+authEventSchema.index({ createdAt: -1, _id: -1 });
 
 export const AuthEvent: Model<IAuthEvent> =
   (mongoose.models.AuthEvent as Model<IAuthEvent>) ||

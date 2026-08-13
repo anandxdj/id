@@ -22,6 +22,10 @@ export const EVENT_TYPES = [
    * client is told the same thing either way. (M3)
    */
   'refresh.reuse_detected',
+  /** A refresh token rotated successfully. Distinct from reuse so a dashboard can chart healthy vs hostile traffic. */
+  'refresh.success',
+  /** A refresh was refused (missing, invalid, expired, session gone). Not recorded for in-flight races. */
+  'refresh.fail',
   // identity lifecycle (M2)
   'register',
   'email.verification.sent',

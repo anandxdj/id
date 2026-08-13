@@ -180,7 +180,6 @@ export const login = async (req: Request, res: Response) => {
   } catch (err) {
     events.record('login.fail', {
       ...events.reqContext(req),
-      meta: { email: String(req.body?.email ?? '').toLowerCase().trim() },
     });
     throw err;
   }
@@ -224,6 +223,10 @@ export const refreshToken = async (req: Request, res: Response) => {
     if (!retriable) {
       res.clearCookie(COOKIE_NAMES.REFRESH_TOKEN, { path: '/' });
       res.clearCookie(COOKIE_NAMES.ACCESS_TOKEN, { path: '/' });
+      events.record('refresh.fail', {
+        ...events.reqContext(req),
+        meta: { code: error instanceof ApiError ? error.code : undefined },
+      });
     }
     throw error;
   }

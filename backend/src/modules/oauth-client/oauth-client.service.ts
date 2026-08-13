@@ -1,12 +1,12 @@
 import { randomBase64Url } from '../../common/utils/crypto.utils';
 import { ClientSecretUtil } from '../../common/utils/clientSecret.utils';
-import { TOKEN_ENDPOINT_AUTH_METHODS } from '../../common/constants/index.constants';
+import { CLIENT_ID, TOKEN_ENDPOINT_AUTH_METHODS } from '../../common/constants/index.constants';
 import { Logger } from '../../common/logger/index.logger';
 import OAuthClient from './oauth-client.model';
 import type { IOAuthClient } from './oauth-client.model';
 
 const makeClientId = (): string =>
-  `cl_${randomBase64Url(18).replace(/[^a-zA-Z0-9_-]/g, '')}`.slice(0, 40);
+  `${CLIENT_ID.PREFIX}${randomBase64Url(18).replace(/[^a-zA-Z0-9_-]/g, '')}`.slice(0, CLIENT_ID.MAX_LENGTH);
 
 /** M4: protocol metadata accepted at registration. Omitted fields take model defaults. */
 export interface ClientProtocolMetadata {

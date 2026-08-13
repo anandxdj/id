@@ -515,6 +515,20 @@ export const PAGINATION = {
   DEFAULT_PAGE: 1,
   DEFAULT_LIMIT: 20,
   MAX_LIMIT: 100,
+  ACTIVITY_DEFAULT_LIMIT: 100,
+  ACTIVITY_MAX_LIMIT: 200,
+} as const;
+
+/** Mongo ObjectId shape. Path-param validators use this so a garbage `:id` is a 400, not a CastError 500. */
+export const OBJECT_ID = {
+  PATTERN: /^[a-fA-F0-9]{24}$/,
+  LENGTH: 24,
+} as const;
+
+/** Opaque OAuth client identifiers. Generated, never an ObjectId. */
+export const CLIENT_ID = {
+  PREFIX: 'cl_',
+  MAX_LENGTH: 40,
 } as const;
 
 // ── Body parser limits ────────────────────────────────────────────────────────

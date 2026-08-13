@@ -149,7 +149,7 @@ before(async () => {
     await clearData();
     await resetLimiters();
     await seedUser(OWNER);
-    await seedUser(ACTOR, USER_ROLES.ADMIN);
+    await seedUser(ACTOR, USER_ROLES.SUPERADMIN);
     await seedUser(TARGET, USER_ROLES.ADMIN);
     await seedUser(SUSPENDEE);
     await seedUser(RESETTER);

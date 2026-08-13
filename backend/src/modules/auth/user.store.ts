@@ -14,10 +14,8 @@ import type { IUser } from './auth.model';
  * closed account can log in, or reset its password, or block re-registration of an address
  * it no longer owns.
  *
- * This deliberately does *not* claim every `User` query in the codebase: profile reads and
- * the admin surface still query the model directly, and converting them is M5's business.
- * The credential paths are the ones where missing the predicate is a security bug rather
- * than a cosmetic one.
+ * Admin listings go through here too as of M5 — a closed account must not reappear as
+ * a tombstone in the user table, and last-admin counts must not include deleted rows.
  */
 
 /** Internal: the predicate that defines "this account may present credentials". */
@@ -113,5 +111,17 @@ export const UserStore = {
       $unset: { password: '' },
     });
     return result.modifiedCount > 0;
+  },
+
+  /**
+   * Count live accounts holding any of `roles`. `exceptUserId` excludes one row so a
+   * last-admin check can ask "how many others would remain".
+   */
+  async countLiveByRoles(roles: readonly string[], exceptUserId?: string): Promise<number> {
+    const filter: Record<string, unknown> = _liveFilter({ role: { $in: [...roles] } });
+    if (exceptUserId && mongoose.Types.ObjectId.isValid(exceptUserId)) {
+      filter._id = { $ne: new mongoose.Types.ObjectId(exceptUserId) };
+    }
+    return User.countDocuments(filter);
   },
 };

@@ -1,7 +1,7 @@
+import mongoose from 'mongoose';
 import { ApiError } from '../../common/utils/ApiError';
 import {
-  ERROR_CODES,
-  HTTP_STATUS,
+  PAGINATION,
   REVOKE_REASONS,
 } from '../../common/constants/index.constants';
 import type { UserRole } from '../../common/constants/index.constants';
@@ -12,6 +12,8 @@ import * as events from '../events/event.service';
 import type { EventContext, EventType } from '../events/event.types';
 import { buildClientConfigPrompt, isPromptStack } from './client-prompt.util';
 import type { PromptStack } from './client-prompt.util';
+import { AdminGuards } from './admin.guards';
+import { UserStore } from '../auth/user.store';
 import User from '../auth/auth.model';
 import type { IUser } from '../auth/auth.model';
 import OAuthClient from '../oauth-client/oauth-client.model';
@@ -42,35 +44,51 @@ const toAdminUser = (u: IUser) => ({
 // ── Users ──────────────────────────────────────────────────────────────────────
 export const listUsers = async ({
   search,
-  page = 1,
-  limit = 20,
+  page = PAGINATION.DEFAULT_PAGE,
+  limit = PAGINATION.DEFAULT_LIMIT,
+  after,
 }: {
   search?: string;
   page?: number;
   limit?: number;
+  after?: string;
 }) => {
-  const lim = Math.min(Math.max(limit, 1), 100);
-  const pg = Math.max(page, 1);
-  const filter = search
-    ? { $or: [{ name: new RegExp(escapeRegex(search), 'i') }, { email: new RegExp(escapeRegex(search), 'i') }] }
-    : {};
-  const [items, total] = await Promise.all([
-    User.find(filter).sort({ createdAt: -1 }).skip((pg - 1) * lim).limit(lim),
-    User.countDocuments(filter),
-  ]);
-  return { items: items.map(toAdminUser), total, page: pg, limit: lim };
+  const lim = Math.min(Math.max(limit, 1), PAGINATION.MAX_LIMIT);
+  const pg = Math.max(page, PAGINATION.DEFAULT_PAGE);
+  const match: Record<string, unknown> = { deletedAt: null };
+  if (search) {
+    match.$or = [
+      { name: new RegExp(escapeRegex(search), 'i') },
+      { email: new RegExp(escapeRegex(search), 'i') },
+    ];
+  }
+  const cursor = after ? { ...match, _id: { $lt: new mongoose.Types.ObjectId(after) } } : match;
+  const query = User.find(cursor).sort({ _id: -1 }).limit(lim + 1);
+  if (!after) query.skip((pg - 1) * lim);
+
+  const [rows, total] = await Promise.all([query, User.countDocuments(match)]);
+  const hasMore = rows.length > lim;
+  const pageRows = hasMore ? rows.slice(0, lim) : rows;
+  const last = pageRows[pageRows.length - 1];
+  return {
+    items: pageRows.map(toAdminUser),
+    total,
+    page: pg,
+    limit: lim,
+    nextCursor: hasMore && last ? last._id.toString() : null,
+  };
 };
 
-/** Full picture of one user: profile, sessions, authorized apps, recent activity. */
+/** Full picture of one live user: profile, sessions, authorized apps, recent activity. */
 export const getUser = async (id: string) => {
-  const user = await User.findById(id);
+  const user = await UserStore.findLiveById(id);
   if (!user) throw ApiError.notFound('User not found');
   const [sessions, apps, activity] = await Promise.all([
     authService.listSessions(id),
     accountService.listApps(id),
-    events.query({ actorUserId: id, limit: 50 }),
+    events.query({ actorUserId: id, limit: PAGINATION.DEFAULT_LIMIT }),
   ]);
-  return { user: toAdminUser(user), sessions, apps, activity };
+  return { user: toAdminUser(user), sessions, apps, activity: activity.items };
 };
 
 /**
@@ -87,6 +105,11 @@ export const getUser = async (id: string) => {
  * the sessions or it does not take effect until they expire.
  */
 export const suspendUser = async (id: string, reason: string | undefined, ctx: AdminActionCtx) => {
+  AdminGuards.assertNotSelf(ctx.actorUserId, id);
+  const existing = await UserStore.findLiveById(id);
+  if (!existing) throw ApiError.notFound('User not found');
+  AdminGuards.assertNotPrivilegedTarget(existing);
+
   const user = await User.findByIdAndUpdate(
     id,
     { $set: { disabled: true, disabledReason: reason ?? '', disabledAt: new Date() } },
@@ -104,6 +127,11 @@ export const suspendUser = async (id: string, reason: string | undefined, ctx: A
 };
 
 export const unsuspendUser = async (id: string, ctx: AdminActionCtx) => {
+  AdminGuards.assertNotSelf(ctx.actorUserId, id);
+  const existing = await UserStore.findLiveById(id);
+  if (!existing) throw ApiError.notFound('User not found');
+  AdminGuards.assertNotPrivilegedTarget(existing);
+
   const user = await User.findByIdAndUpdate(
     id,
     { $set: { disabled: false }, $unset: { disabledReason: '', disabledAt: '' } },
@@ -128,13 +156,14 @@ export const unsuspendUser = async (id: string, ctx: AdminActionCtx) => {
  * `auth.middleware` re-reading the user until M3.
  *
  * Self-targeting is refused. An admin demoting themselves would revoke the session the
- * request is being made on, which is a footgun rather than a feature; the broader
- * admin-protects-admin and last-admin guards belong to M5.
+ * request is being made on. Admin-protects-admin and last-admin are enforced before the
+ * write so a race cannot drop the last operator.
  */
 export const changeUserRole = async (id: string, role: UserRole, ctx: AdminActionCtx) => {
-  if (ctx.actorUserId && ctx.actorUserId === id) {
-    throw ApiError.fromCode(HTTP_STATUS.FORBIDDEN, ERROR_CODES.CANNOT_TARGET_SELF);
-  }
+  AdminGuards.assertNotSelf(ctx.actorUserId, id);
+  const existing = await UserStore.findLiveById(id);
+  if (!existing) throw ApiError.notFound('User not found');
+  await AdminGuards.assertCanChangeRole(ctx.actorRole, existing, role);
 
   const user = await User.findByIdAndUpdate(id, { $set: { role } }, { new: true });
   if (!user) throw ApiError.notFound('User not found');
@@ -153,8 +182,8 @@ export const changeUserRole = async (id: string, role: UserRole, ctx: AdminActio
 export const metrics = async () => {
   const [totalUsers, disabledUsers, totalClients, suspendedClients, activeUserIds, logins24h] =
     await Promise.all([
-      User.countDocuments({}),
-      User.countDocuments({ disabled: true }),
+      User.countDocuments({ deletedAt: null }),
+      User.countDocuments({ deletedAt: null, disabled: true }),
       OAuthClient.countDocuments({}),
       OAuthClient.countDocuments({ suspended: true }),
       AuthEvent.distinct('actorUserId', { type: 'login.success', createdAt: { $gte: since(7) } }),
@@ -175,12 +204,21 @@ export const activity = ({
   clientId,
   actorUserId,
   limit,
+  after,
 }: {
   type?: EventType | EventType[];
   clientId?: string;
   actorUserId?: string;
   limit?: number;
-}) => events.query({ type, clientId, actorUserId, limit: limit ?? 100 });
+  after?: string;
+}) =>
+  events.query({
+    type,
+    clientId,
+    actorUserId,
+    limit: limit ?? PAGINATION.ACTIVITY_DEFAULT_LIMIT,
+    after,
+  });
 
 // ── OAuth clients ──────────────────────────────────────────────────────────────
 /**

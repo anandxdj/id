@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { ApiResponse } from '../../common/utils/ApiResponse';
 import { ApiError } from '../../common/utils/ApiError';
-import { SUCCESS_MESSAGES } from '../../common/constants/index.constants';
+import { PAGINATION, SUCCESS_MESSAGES } from '../../common/constants/index.constants';
 import { reqContext } from '../events/event.service';
 import type { EventType } from '../events/event.types';
 import * as adminService from './admin.service';
@@ -22,8 +22,9 @@ const int = (v: unknown, fallback: number): number => {
 export const listUsers = async (req: Request, res: Response) => {
   const data = await adminService.listUsers({
     search: str(req.query.search),
-    page: int(req.query.page, 1),
-    limit: int(req.query.limit, 20),
+    page: int(req.query.page, PAGINATION.DEFAULT_PAGE),
+    limit: int(req.query.limit, PAGINATION.DEFAULT_LIMIT),
+    after: str(req.query.after),
   });
   ApiResponse.ok(res, 'Users', data);
 };
@@ -59,13 +60,16 @@ export const metrics = async (_req: Request, res: Response) => {
 
 export const activity = async (req: Request, res: Response) => {
   const typeParam = str(req.query.type);
-  const data = await adminService.activity({
+  const page = await adminService.activity({
     type: typeParam ? (typeParam.split(',') as EventType[]) : undefined,
     clientId: str(req.query.clientId),
     actorUserId: str(req.query.userId),
-    limit: int(req.query.limit, 100),
+    limit: int(req.query.limit, PAGINATION.ACTIVITY_DEFAULT_LIMIT),
+    after: str(req.query.after),
   });
-  ApiResponse.ok(res, 'Activity', data);
+  // Array-shaped for the existing admin UI; cursor is additive so a client that
+  // does not keyset-paginate still works.
+  ApiResponse.ok(res, 'Activity', page.items);
 };
 
 // ── Clients ──────────────────────────────────────────────────────────────────────
