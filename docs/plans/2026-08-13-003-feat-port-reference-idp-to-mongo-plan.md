@@ -1,6 +1,6 @@
 # 003 — Port the reference IdP feature set onto our Mongo stack
 
-**Status:** §3 signed off (see §8) — **M0, M1, M2 complete**; M3 next (M2 ∥ M3 per §5)
+**Status:** §3 signed off (see §8) — **M0, M1, M2, M3 complete**; M4 next
 **Reference:** `github.com/imohit159/oidc-oauth-1o1` (read-only study copy)
 **Scope:** backend + shared contracts only. Our UI stays ours; the reference frontend is not ported.
 
@@ -579,3 +579,117 @@ logger (rule 9), and records the submitted email in `login.fail` metadata.
 
 **Verification:** `pnpm typecheck` clean; 99 tests, 99 pass, 0 fail, 0 skipped against a
 live one-member replica set and Redis (63 before M2).
+
+### M3 — Sessions ✅
+
+Refresh tokens are durable, rotating, revocable records grouped into families; the
+denormalised session snapshot is finally authoritative; and login is gated on a verified
+address.
+
+**The email-verification gate (carried over from M2).** Backfill, then gate.
+`scripts/backfill-email-verified.ts` marks every account created before a **pinned
+cutoff** verified, and the pin is what makes it idempotent in the strong sense — the naive
+`updateMany({ isVerified: false })` is safe to re-run only until somebody registers, after
+which a second run silently verifies exactly the population the gate exists to cover. The
+cutoff is deliberately not consulted at login: two sources of truth for "is this account
+gated" is worse than one, and a runtime cutoff would mean the gate never applied to the
+legacy estate with no way to ever enforce it.
+
+The rejection itself is the interesting part. The reference answers with a distinct
+`EMAIL_NOT_VERIFIED` 403 *after* the password has verified and *without* incrementing the
+throttle (§2.3-13). That is a password oracle — the response changes shape at the exact
+moment a guess is correct — and an unthrottled one, so the account it leaks about is also
+the one you may guess against forever. Ours is byte-identical to a wrong password, counts
+against the same throttle, and dispatches a fresh verification link without awaiting it so
+the branches do not separate on response time either. The only channel carrying the real
+reason is the mailbox, which is the only party entitled to it and the only one who can act
+on it.
+
+| New collection | Indexes |
+|---|---|
+| `refreshTokens` | unique `tokenHash`; unique `tokenJti`; `{ familyId, status }`; `{ sessionId, status }`; `{ userId, status }`; TTL on `expiresAt` with a **7-day replay retention** |
+
+Retention rather than reap-on-expiry, for the same reason authorization codes get it:
+validity is the `expiresAt` predicate every read carries, retention is how long a replay
+stays *recognisable* as a replay. There is deliberately no partial unique index on
+`{ sessionId, status: 'active' }` — it would turn the benign double-refresh race into a
+hard `E11000` at precisely the moment the grace window exists to handle gracefully.
+
+**Rotation, and how a race is told from a theft.** The claim is one atomic
+`findOneAndUpdate` on `status: active → rotated` returning the pre-image. The pre-image is
+the whole point: `findOneAndDelete` would collapse "a genuine token replayed" into "a
+token that never existed". Two facts then decide what a failed claim means, and **both**
+must hold for the benign verdict:
+
+1. the presented token was rotated less than ten seconds ago, and
+2. its heir is still the leaf — still `active`, not itself rotated.
+
+Time alone is insufficient because a family can rotate twice inside the window; generation
+alone is insufficient because a token rotated three days ago whose child was never used is
+exactly the shape of a stolen credential cashed in late. Inside the window the caller is
+handed *the same successor the winner received*, not a retriable error — and without ever
+storing a token in plaintext, because the JWT is signed from explicit `jti`/`iat`/`exp`
+and is therefore reproducible from its own row. The reproduction is checked against the
+stored hash rather than assumed; a mismatch degrades to "retry shortly" instead of
+returning something that would not verify.
+
+The write order is what makes that deterministic, and it is not the obvious one: **the
+child is inserted before the parent is claimed**, and `replacedByTokenId` is set in the
+same atomic update that flips the status. Claim-then-insert leaves a window in which the
+parent reads as `rotated` with no heir, and every concurrent refresh landing in it — the
+common case, milliseconds apart — could only be answered with "retry". The cost is an
+inert orphan row if a process dies mid-rotation; nobody ever saw its plaintext.
+
+On reuse: session first (it is what everything gates on), then the family, then the audit
+event. Blast radius is the family and its session, not every session the user holds —
+killing everything punishes a user whose other devices are fine and makes any false
+positive catastrophic. The stricter posture is `REFRESH_REUSE_REVOKES_ALL_SESSIONS`, and
+it is deliberately not the default.
+
+**The snapshot flip, in the required order.** `auth.middleware` now reads `role` and
+`disabled` off the session document and no longer re-reads the user — one database round
+trip per authenticated request instead of two, on the hottest path in the system. That is
+only safe because a stale snapshot became *impossible* first: role change, suspension,
+closure and password reset all revoke the affected sessions through one fan-out
+(`revokeAllCredentials` / `applyAccountSnapshotChange`) before the change is observable.
+A session that still resolves is a session whose snapshot still matches. Revoking rather
+than merely re-stamping is what buys that: no session survives a role change, so none can
+disagree. The access token's own `role` claim remains authoritative for nothing — it lives
+fifteen minutes with no way to invalidate it, whereas a session is a row we can revoke.
+`req.user` lost `name` and `email` in the process; nothing read them, and they were the
+only reason the second query existed.
+
+**Revocation coverage**, each with a test: password reset, account closure, admin
+suspension, role change, single-device sign-out, and reuse detection. Suspension in
+particular was upgraded from a session sweep to the full fan-out — a session-only
+revocation leaves the suspended user holding a refresh token that mints a new one, which
+is §2.3-15 exactly.
+
+**Device names.** `ua-parser-js`, deferred from M2. The label is composed from the
+*parsed* browser and platform, never echoed from the input, capped before parsing (a
+regex parser fed a megabyte of crafted input is a CPU denial of service on the login
+path), stripped of control characters and bidirectional overrides, and capped again. The
+raw agent is still stored, because a device label is a guess and support needs the
+original.
+
+**Deviations.** `JWT_REFRESH_EXPIRES_IN` no longer sizes the first-party refresh token:
+the window is the session's own `expiresAt`, inherited unchanged by every child, so a
+refresh token cannot outlive its session and the window cannot slide. The plan's §4.2
+answered a grace-window replay with a retriable `REFRESH_IN_FLIGHT` on the grounds that
+"we only store hashes"; deterministic re-derivation removes that constraint, so the benign
+path returns the successor and `REFRESH_IN_FLIGHT` survives only for the genuinely
+ambiguous case of a rotation whose child is not readable yet. A `PATCH
+/api/admin/users/:id/role` endpoint was added, because "role change revokes sessions" is
+untestable without a role change; it refuses self-targeting, and the broader
+admin-protects-admin and last-admin guards remain M5's.
+
+**Found, out of scope.** `admin.service.listUsers` still does not filter `deletedAt` (M5,
+already noted). `event.service` still reports its own write failures through
+`console.warn`, bypassing the logger (rule 9), and still records the submitted email in
+`login.fail` metadata — which now also captures the address of every gated login attempt.
+`getUser` in the admin service passes no current-session handle to `listSessions`, so
+every session in the admin view is `current: false`; harmless, but the parameter reads as
+though it were meaningful.
+
+**Verification:** `pnpm typecheck` clean; 119 tests, 119 pass, 0 fail, 0 skipped against a
+live one-member replica set and Redis (99 before M3).
