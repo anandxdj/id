@@ -1,6 +1,6 @@
 # 003 — Port the reference IdP feature set onto our Mongo stack
 
-**Status:** §3 signed off (see §8) — **M0 complete**, M1 next
+**Status:** §3 signed off (see §8) — **M0, M1, M2 complete**; M3 next (M2 ∥ M3 per §5)
 **Reference:** `github.com/imohit159/oidc-oauth-1o1` (read-only study copy)
 **Scope:** backend + shared contracts only. Our UI stays ours; the reference frontend is not ported.
 
@@ -466,3 +466,116 @@ dead Redis costs no request latency rather than stalling every login.
 
 **Verification:** `pnpm typecheck` clean; 63 tests, 63 pass, 0 fail, 0 skipped against a
 live one-member replica set and Redis.
+
+### M2 — Identity ✅
+
+Passwords are Argon2id, the two mailbox-authenticated flows exist, failed logins are
+throttled without being lockable, four endpoints stopped answering questions about which
+accounts exist, and closing an account now does something.
+
+**Argon2id, via `@node-rs/argon2`.** Chosen over `argon2` because it ships prebuilt
+binaries, so the production image needs no node-gyp toolchain — and over `bcryptjs`
+because that is the pure-JS build: slower than native for equivalent work *and* fully
+synchronous, so every login blocked the event loop for the whole KDF (rule 5). Parameters
+are OWASP-current (64 MiB, t=3, p=4) and are **configuration**, bounded on both sides:
+a mistyped `ARGON2_MEMORY_KIB=64` would still hash and verify every password at roughly a
+thousandth of the intended cost. Measured 34 ms per hash at the defaults.
+
+`bcryptjs` remains as a **verify-only** fallback. `needsRehash` compares a stored digest
+against the configured cost and the login path rewrites it in place, so the legacy estate
+upgrades organically and raising the cost later actually upgrades stored hashes rather than
+applying only to accounts created after the deploy. No forced reset, no batch job, no
+`algorithm` column — an Argon2 PHC string carries its own parameters, so the digest is
+self-describing and cannot disagree with a field claiming to describe it.
+
+`UV_THREADPOOL_SIZE` is now a deliberate config value, because the binding dispatches onto
+libuv's pool, which defaults to **four** threads and is shared with `dns.lookup`, `fs`,
+`zlib`, and `crypto.pbkdf2`. Measured: with the default pool a `readFile` that takes 0 ms
+idle takes **182 ms** while eight hashes are in flight; at 16 threads it returns in 0 ms.
+Mongo and Redis reconnects need `dns.lookup`, so an undersized pool lets a login burst
+delay the reconnect that would end an outage. libuv fixes the size before any application
+code runs, so `PasswordService.warmup()` reports it at boot rather than setting it.
+
+**The user model is pure schema** (rule 6). Its `pre('save')` hashing hook is gone: a hook
+makes "is this field plaintext or a digest?" depend on which write path you arrived
+through, which is precisely the ambiguity that would double-hash a rehash-on-login write.
+
+| New collection | Indexes |
+|---|---|
+| `authActionTokens` | unique `tokenHash`; `{ userId, type, consumedAt, revokedAt }` for revoke-on-reissue; TTL on `expiresAt` |
+| `loginThrottles` | `_id` = `sha256(email)`; TTL on `windowExpiresAt` |
+
+Both are registered in `indexSync.ts`, and each has exactly one store module owning every
+query against it, so "every read filters on expiry" stays reviewable.
+
+**Action tokens.** Hashed at rest, discriminated by `type` *inside the claim filter* so a
+verification link cannot be spent as a password reset, and claimed by a single-document
+`findOneAndUpdate` returning the pre-image — no transactions. `consumedAt` and `revokedAt`
+are separate fields, because "you already used this link" and "you clicked an older link"
+are different answers to a support question. Re-issue revokes every prior outstanding token
+of that type. `ActionTokenRedemption` holds the guard sequence once — atomic claim, live
+account, usable account, address still bound — because two copies of it is exactly how
+§2.3-11 happens.
+
+A completed reset revokes every session and every OIDC access token. Refresh tokens are
+covered transitively: today's is a bare JWT gated on its session existing, so killing the
+session kills it — M3 gives them their own fan-out in `revokeAllCredentials`.
+
+**The login throttle is in Mongo, deliberately, and it is the one counter that is.** The
+general limiters live in Redis and fail open, because a cache blip must not become an auth
+outage; failing open *here* would mean unlimited password guessing for the duration of that
+blip, and this counter writes only on failed logins, so durability costs nothing. It is a
+window, never a lockout: the lock is read from `lockedUntil` alone and the document
+self-expires, so the state decays to "no record" with nothing having to run. One
+aggregation-pipeline `findOneAndUpdate` performs the increment, the window decision, and
+the threshold decision server-side, so a parallel burst counts as a burst. Locking extends
+the window past `lockedUntil`, or the reaper would delete the document mid-lock and hand
+the attacker their attempts straight back.
+
+**Enumeration.** Register, forgot-password, and resend-verification are byte-identical
+across branches; register returns no user object, because a varying shape is the same
+oracle in a different coat; and losing the concurrent insert race folds into the
+"already exists" branch rather than surfacing `E11000` as a 409, since an oracle that needs
+a race is still an oracle. Login runs a dummy Argon2id verification at the configured cost
+when the address does not exist, and increments the throttle for unknown addresses too so
+the counter cannot separate the cases either. Verified by measurement, not assertion:
+medians over repeated samples, compared as a ratio.
+
+**Email.** Real Resend delivery, as one timed `fetch` rather than the SDK — the surface we
+need is a single authenticated POST, and owning the timeout matters more here than
+ergonomics. The token is persisted **before** delivery is attempted and delivery is never
+awaited, so a provider outage cannot lose the only verification link a user will get;
+resend is the recovery path, and no queue or worker was built. No body, token, or link ever
+reaches a log sink — the logger redacts by key pattern, which is no defence against a token
+interpolated into a message string, so the discipline lives where bodies exist. Unconfigured
+locally, messages go to a bounded in-memory outbox behind `GET /api/v1/auth/dev/outbox`,
+which 404s the moment a provider is configured and always in production. Links carry the
+token in the URL **fragment**, never the query string.
+
+**Account closure.** `deletedAt` is stamped, the digest dropped, sessions and access tokens
+revoked, outstanding action tokens revoked, consents dropped, identities deleted — and the
+address moved to `deletedEmail` with `email` replaced by a reserved `.invalid` tombstone.
+That frees the live unique index without rebuilding it; making the index partial on
+`{ deletedAt: null }` is prettier data but means dropping and recreating a unique index on
+a live collection and leaning on `partialFilterExpression`'s null semantics. Identities are
+deleted rather than flagged for the same reason — a soft flag leaves the unique
+`{ provider, providerAccountId }` key occupied, so the same Google account could never be
+linked again.
+
+**Deliberately not done.** Login is *not* gated on `email_verified`: every existing account
+has `isVerified: false`, so gating it would lock the current user base out, and it is a
+product decision rather than a security one. A successful reset does not set `isVerified`
+either, though the argument for it is decent. `ua-parser-js` device names slipped to M3,
+where the session surface is already being reworked. `identities` keeps
+`providerAccountId` and gains no `passwordHash`; moving credentials onto identity rows is a
+data migration, not an M2 change.
+
+**Found, out of scope.** `oauth-client.service.ts` still hashes and verifies client secrets
+with blocking `bcryptjs` on the token endpoint's hot path — and a 32-byte random secret
+needs a fast digest, not a password KDF, so the cost is pure waste (M4). The admin user
+list does not filter `deletedAt`, so a closed account appears as its tombstone (M5).
+`event.service.ts` reports its own write failures through `console.warn`, bypassing the
+logger (rule 9), and records the submitted email in `login.fail` metadata.
+
+**Verification:** `pnpm typecheck` clean; 99 tests, 99 pass, 0 fail, 0 skipped against a
+live one-member replica set and Redis (63 before M2).
