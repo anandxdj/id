@@ -6,7 +6,7 @@ import { getRedis, disconnectRedis } from './src/common/config/redis';
 import { IndexSync } from './src/common/config/indexSync';
 import { Config } from './src/common/config/config';
 import { Logger } from './src/common/logger/index.logger';
-import { initOidcKeys } from './src/common/utils/keys.utils';
+import { SigningKeyService } from './src/modules/oauth/signing-key.service';
 
 /** Server-level timeouts. Without these, a slow client can hold a socket indefinitely. */
 const KEEP_ALIVE_TIMEOUT_MS = 65_000;
@@ -81,8 +81,15 @@ async function main(): Promise<void> {
     );
   }
 
-  await initOidcKeys();
-  Logger.info('OIDC signing keys ready', { issuer: Config.oidc.issuer, kid: Config.oidc.keyId });
+  // After connectDB: the keyring is a Mongo collection, so a key seeded by one replica
+  // is the key every other replica signs with. The `kid` logged here is the RFC 7638
+  // thumbprint of the key actually in use, not a configured string that may not
+  // describe it.
+  await SigningKeyService.init();
+  Logger.info('OIDC signing keys ready', {
+    issuer: Config.oidc.issuer,
+    kid: SigningKeyService.activeKid(),
+  });
 
   const app = createApp();
   const server = app.listen(Config.server.port, () => {
