@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
 import * as events from './event.service';
 import AuthEvent from './event.model';
+import { IntegrationGate } from '../../common/testing/index.testing';
 
 process.env.MONGO_DB_NAME ??= 'id_test';
 const TAG = 'm1-test-ua'; // tag rows via `ua` so cleanup never touches real data
@@ -48,8 +49,9 @@ before(async () => {
     await AuthEvent.syncIndexes();
     await AuthEvent.deleteMany({ ua: TAG });
     available = true;
-  } catch {
+  } catch (error) {
     available = false;
+    IntegrationGate.reportUnavailable('event.service', error);
   }
 });
 

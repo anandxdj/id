@@ -5,6 +5,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import type { NormalizedProfile } from './connectors/types';
+import { IntegrationGate } from '../../common/testing/index.testing';
 
 process.env.MONGO_DB_NAME ??= 'id_test';
 
@@ -30,13 +31,13 @@ before(async () => {
     await User.deleteMany({ email: { $in: EMAILS } });
     await Identity.deleteMany({ providerAccountId: { $in: ['g-new', 'g-link', 'h-unverified', 'g-repeat'] } });
     available = true;
-  } catch {
+  } catch (cause) {
     available = false;
     try {
       const mongoose = (await import('mongoose')).default;
       await mongoose.disconnect();
     } catch { /* ignore */ }
-    console.log('[social.integration] Mongo unavailable — skipping');
+    IntegrationGate.reportUnavailable('social.integration', cause);
   }
 });
 
