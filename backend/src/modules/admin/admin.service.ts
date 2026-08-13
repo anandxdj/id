@@ -1,4 +1,5 @@
 import { ApiError } from '../../common/utils/ApiError';
+import { REVOKE_REASONS } from '../../common/constants/index.constants';
 import * as authService from '../auth/auth.service';
 import * as accountService from '../account/account.service';
 import * as clientService from '../oauth-client/oauth-client.service';
@@ -72,7 +73,14 @@ export const suspendUser = async (id: string, reason: string | undefined, ctx: A
     { new: true },
   );
   if (!user) throw ApiError.notFound('User not found');
-  const sessionsRevoked = await authService.revokeAllSessions(id);
+  // Sessions now carry a revocation reason, so record why these died rather than
+  // labelling an admin suspension as an ordinary sign-out.
+  const sessionsRevoked = await authService.revokeAllSessions(
+    id,
+    null,
+    {},
+    REVOKE_REASONS.USER_SUSPENDED,
+  );
   events.record('admin.user.suspended', { ...ctx, targetUserId: id, meta: { reason, sessionsRevoked } });
   return toAdminUser(user);
 };

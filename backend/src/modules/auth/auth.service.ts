@@ -1,6 +1,12 @@
 import { ApiError } from '../../common/utils/ApiError';
-import { redis } from '../../common/config/redis';
 import { randomBase64Url } from '../../common/utils/crypto.utils';
+import {
+  CRYPTO,
+  MILLISECONDS,
+  REVOKE_REASONS,
+  TTL_SECONDS,
+} from '../../common/constants/index.constants';
+import type { RevokeReason } from '../../common/constants/index.constants';
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -10,8 +16,11 @@ import * as events from '../events/event.service';
 import type { EventContext } from '../events/event.types';
 import User from './auth.model';
 import type { IUser } from './auth.model';
+import { SessionStore } from './session.store';
+import type { ISession } from './session.model';
 
-export const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 7; // 7d — keep aligned with JWT_REFRESH_EXPIRES_IN
+/** Keep aligned with JWT_REFRESH_EXPIRES_IN — it also sizes the refresh cookie. */
+export const REFRESH_TTL_SECONDS = TTL_SECONDS.SESSION;
 
 export interface PublicUser {
   _id: string;
@@ -31,143 +40,134 @@ const toPublic = (u: IUser): PublicUser => ({
   profilePictureUrl: u.profilePictureUrl || undefined,
 });
 
-const sessionKey = (userId: string, sid: string) => `session:${userId}:${sid}`;
-const sessionPrefix = (userId: string) => `session:${userId}:`;
-
 /** Device metadata captured when a session is created. */
 export interface SessionMeta {
   ua?: string;
   ip?: string;
 }
 
-/** Stored shape of a whitelisted session (the Redis value). */
-export interface SessionRecord {
+/**
+ * Wire shape of a session in the account/admin APIs.
+ *
+ * `sid` is the session *handle* (`sha256` of the secret sid), because the raw sid never
+ * leaves the token it was minted into. Clients only ever treat it as an opaque string
+ * to list by and revoke by, so the contract is unchanged. Timestamps stay epoch-ms
+ * numbers for the same reason.
+ */
+export interface SessionView {
+  sid: string;
   ua?: string;
   ip?: string;
-  createdAt: number; // epoch ms
-  lastSeenAt: number; // epoch ms
-}
-
-export interface SessionView extends SessionRecord {
-  sid: string;
+  createdAt: number;
+  lastSeenAt: number;
   current: boolean;
   expiresInSeconds: number;
 }
 
-const LASTSEEN_THROTTLE_MS = 60_000;
+// Internal: project a stored session into its API shape.
+const _toSessionView = (session: ISession, currentHandle: string | null): SessionView => ({
+  sid: session._id,
+  ua: session.userAgent,
+  ip: session.ipAddress,
+  createdAt: session.createdAt.getTime(),
+  lastSeenAt: session.lastSeenAt.getTime(),
+  current: session._id === currentHandle,
+  expiresInSeconds: Math.max(
+    0,
+    Math.floor((session.expiresAt.getTime() - Date.now()) / MILLISECONDS.SECOND),
+  ),
+});
 
-/** Parse a stored session value, tolerating the legacy `'1'` whitelist marker. */
-const parseSession = (raw: string | null): SessionRecord | null => {
-  if (!raw) return null;
-  if (raw === '1') return { createdAt: 0, lastSeenAt: 0 }; // pre-enrichment session
-  try {
-    return JSON.parse(raw) as SessionRecord;
-  } catch {
-    return null;
-  }
-};
-
-/** SCAN all session keys for a user (small N — one per active device). */
-const scanSessionKeys = async (userId: string): Promise<string[]> => {
-  const match = `${sessionPrefix(userId)}*`;
-  const keys: string[] = [];
-  let cursor = '0';
-  do {
-    const [next, batch] = await redis.scan(cursor, 'MATCH', match, 'COUNT', 100);
-    cursor = next;
-    keys.push(...batch);
-  } while (cursor !== '0');
-  return keys;
-};
-
-/** Create a whitelisted session for a user and return the token pair. Shared by
- *  password login and every social connector callback. */
+/** Create a session for a user and return the token pair. Shared by password login
+ *  and every social connector callback. */
 export const createSession = async (user: IUser, meta: SessionMeta = {}) => {
-  const sid = randomBase64Url(24);
-  const now = Date.now();
-  const record: SessionRecord = { ua: meta.ua, ip: meta.ip, createdAt: now, lastSeenAt: now };
-  await redis.set(sessionKey(user._id.toString(), sid), JSON.stringify(record), 'EX', REFRESH_TTL_SECONDS);
+  const sid = randomBase64Url(CRYPTO.TOKEN_BYTES.SESSION_ID);
+  const userId = user._id.toString();
+
+  // Calls out to the session store — the only module that touches the collection.
+  await SessionStore.create({
+    sid,
+    userId,
+    role: user.role,
+    disabled: user.disabled === true,
+    userAgent: meta.ua,
+    ipAddress: meta.ip,
+  });
+
   events.record('session.created', {
-    actorUserId: user._id.toString(),
+    actorUserId: userId,
     actorRole: user.role,
     ip: meta.ip,
     ua: meta.ua,
-    meta: { sid },
+    // The handle, never the sid: the sid is a credential and the logger must not see it.
+    meta: { session: SessionStore.handleOf(sid) },
   });
-  const base = { id: user._id.toString(), sid, role: user.role };
+
   return {
-    accessToken: generateAccessToken(base),
-    refreshToken: generateRefreshToken({ id: base.id, sid }),
+    accessToken: generateAccessToken({ id: userId, sid, role: user.role }),
+    refreshToken: generateRefreshToken({ id: userId, sid }),
   };
 };
 
-/** Refresh a session's lastSeenAt (throttled, TTL preserved). Fire-and-forget. */
-export const touchSession = async (userId: string, sid: string | null | undefined): Promise<void> => {
-  if (!sid) return;
-  const key = sessionKey(userId, sid);
-  const rec = parseSession(await redis.get(key));
-  if (!rec) return;
-  const now = Date.now();
-  if (now - (rec.lastSeenAt ?? 0) < LASTSEEN_THROTTLE_MS) return;
-  rec.lastSeenAt = now;
-  await redis.set(key, JSON.stringify(rec), 'KEEPTTL');
+/** Resolve a live session from a verified token's sid. Null when revoked or expired. */
+export const findActiveSession = (
+  userId: string,
+  sid: string | null | undefined,
+): Promise<ISession | null> => {
+  if (!sid) return Promise.resolve(null);
+  return SessionStore.findActive(userId, SessionStore.handleOf(sid));
 };
 
-/** List a user's active sessions, newest-activity first; flags the caller's own. */
+/** Advance a session's lastSeenAt (throttled, single conditional write). Fire-and-forget. */
+export const touchSession = async (userId: string, sid: string | null | undefined): Promise<void> => {
+  if (!sid) return;
+  await SessionStore.touch(userId, SessionStore.handleOf(sid));
+};
+
+/** List a user's live sessions, newest-activity first; flags the caller's own. */
 export const listSessions = async (
   userId: string,
   currentSid?: string | null,
 ): Promise<SessionView[]> => {
-  const keys = await scanSessionKeys(userId);
-  const prefix = sessionPrefix(userId);
-  const views = await Promise.all(
-    keys.map(async (key): Promise<SessionView> => {
-      const sid = key.slice(prefix.length);
-      const rec = parseSession(await redis.get(key)) ?? { createdAt: 0, lastSeenAt: 0 };
-      const ttl = await redis.ttl(key);
-      return {
-        sid,
-        ua: rec.ua,
-        ip: rec.ip,
-        createdAt: rec.createdAt,
-        lastSeenAt: rec.lastSeenAt,
-        current: sid === currentSid,
-        expiresInSeconds: ttl,
-      };
-    }),
-  );
-  views.sort((a, b) => (b.lastSeenAt ?? 0) - (a.lastSeenAt ?? 0));
-  return views;
+  const sessions = await SessionStore.listActive(userId);
+  const currentHandle = currentSid ? SessionStore.handleOf(currentSid) : null;
+  return sessions.map((session) => _toSessionView(session, currentHandle));
 };
 
-/** Revoke one session. Returns true if it existed. */
+/**
+ * Revoke one session, addressed by the handle the sessions API published.
+ * Returns false when it was already revoked, already expired, or never existed.
+ */
 export const revokeSession = async (
   userId: string,
-  sid: string,
+  handle: string,
   ctx: Pick<EventContext, 'ip' | 'ua' | 'actorRole'> = {},
+  reason: RevokeReason = REVOKE_REASONS.USER_REVOKED_SESSION,
 ): Promise<boolean> => {
-  const removed = await redis.del(sessionKey(userId, sid));
-  if (removed > 0) {
-    events.record('session.revoked', { actorUserId: userId, ...ctx, meta: { sid } });
+  const revoked = await SessionStore.revoke(userId, handle, reason);
+  if (revoked) {
+    events.record('session.revoked', { actorUserId: userId, ...ctx, meta: { session: handle, reason } });
   }
-  return removed > 0;
+  return revoked;
 };
 
-/** Revoke every session for a user (optionally keeping one). Returns the count revoked. */
+/** Revoke every session for a user (optionally sparing the caller's). Returns the count. */
 export const revokeAllSessions = async (
   userId: string,
   exceptSid?: string | null,
   ctx: Pick<EventContext, 'ip' | 'ua' | 'actorRole'> = {},
+  reason: RevokeReason = REVOKE_REASONS.USER_LOGOUT_ALL,
 ): Promise<number> => {
-  const keys = await scanSessionKeys(userId);
-  const prefix = sessionPrefix(userId);
-  let count = 0;
-  for (const key of keys) {
-    if (exceptSid && key.slice(prefix.length) === exceptSid) continue;
-    count += await redis.del(key);
-  }
+  const count = await SessionStore.revokeAll(userId, {
+    exceptHandle: exceptSid ? SessionStore.handleOf(exceptSid) : null,
+    reason,
+  });
   if (count > 0) {
-    events.record('session.revoked', { actorUserId: userId, ...ctx, meta: { all: true, count, exceptSid } });
+    events.record('session.revoked', {
+      actorUserId: userId,
+      ...ctx,
+      meta: { all: true, count, reason },
+    });
   }
   return count;
 };
@@ -210,8 +210,8 @@ export const refresh = async (refreshToken: string | undefined) => {
     throw ApiError.unauthorized('Invalid or expired refresh token');
   }
 
-  const whitelisted = await redis.get(sessionKey(decoded.id, decoded.sid));
-  if (!whitelisted) throw ApiError.unauthorized('Session expired or revoked');
+  const session = await findActiveSession(decoded.id, decoded.sid);
+  if (!session) throw ApiError.unauthorized('Session expired or revoked');
 
   const user = await User.findById(decoded.id);
   if (!user) throw ApiError.unauthorized('User no longer exists');
@@ -221,7 +221,8 @@ export const refresh = async (refreshToken: string | undefined) => {
 };
 
 export const logout = async (userId: string, sid: string | null) => {
-  if (sid) await redis.del(sessionKey(userId, sid));
+  if (!sid) return;
+  await SessionStore.revoke(userId, SessionStore.handleOf(sid), REVOKE_REASONS.USER_LOGOUT);
 };
 
 export const getMe = async (userId: string) => {

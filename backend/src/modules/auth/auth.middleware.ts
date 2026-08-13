@@ -2,14 +2,10 @@ import type { Request, Response, NextFunction } from 'express';
 import { ApiError } from '../../common/utils/ApiError';
 import { asyncHandler } from '../../common/utils/asyncHandler';
 import { verifyAccessToken } from '../../common/utils/jwt.utils';
-import { redis } from '../../common/config/redis';
-import { COOKIE_NAMES, REDIS_KEYS } from '../../common/constants/index.constants';
-import { touchSession } from './auth.service';
+import { COOKIE_NAMES } from '../../common/constants/index.constants';
+import { findActiveSession, touchSession } from './auth.service';
 import User from './auth.model';
 import type { AuthUser } from '../../types/express';
-
-const sessionKey = (userId: string, sid: string | undefined) =>
-  sid ? `${REDIS_KEYS.SESSION}:${userId}:${sid}` : `${REDIS_KEYS.SESSION}:${userId}`;
 
 const readAccessToken = (req: Request): string | null => {
   const header = req.headers.authorization;
@@ -33,7 +29,7 @@ const toAuthUser = (
   email: user.email,
 });
 
-/** Require a valid access token whose session is still whitelisted in Redis. */
+/** Require a valid access token whose session is still live in Mongo. */
 export const authenticate = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const token = readAccessToken(req);
   if (!token) throw ApiError.unauthorized('Not authenticated');
@@ -46,8 +42,10 @@ export const authenticate = asyncHandler(async (req: Request, res: Response, nex
     throw ApiError.unauthorized('Session expired or invalid');
   }
 
-  const whitelisted = await redis.get(sessionKey(decoded.id, decoded.sid));
-  if (!whitelisted) {
+  // Calls out to the session store, which filters on `expiresAt` itself — the TTL
+  // index reaps on a ~60 s cycle and must never be the thing enforcing expiry.
+  const session = await findActiveSession(decoded.id, decoded.sid);
+  if (!session) {
     res.clearCookie('accessToken', { path: '/' });
     res.clearCookie(COOKIE_NAMES.REFRESH_TOKEN, { path: '/' });
     throw ApiError.unauthorized('Session expired or revoked');
@@ -77,8 +75,8 @@ export const tryAttachUser = asyncHandler(async (req: Request, _res: Response, n
   if (!token) return next();
   try {
     const decoded = verifyAccessToken(token);
-    const whitelisted = await redis.get(sessionKey(decoded.id, decoded.sid));
-    if (whitelisted) {
+    const session = await findActiveSession(decoded.id, decoded.sid);
+    if (session) {
       const user = await User.findById(decoded.id);
       if (user && !user.disabled) req.user = toAuthUser(user, decoded.sid ?? null);
     }
