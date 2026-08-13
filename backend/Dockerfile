@@ -44,8 +44,18 @@ FROM node:${NODE_VERSION}-alpine AS runtime
 RUN apk add --no-cache tini
 
 ARG PORT=4000
+# UV_THREADPOOL_SIZE is set here because libuv fixes the pool size before any application
+# code runs, so it cannot come from the config layer like everything else.
+#
+# Argon2id dispatches onto that pool, which defaults to 4 threads and is shared with
+# dns.lookup, fs and zlib. Measured on this codebase: while eight password hashes are in
+# flight, an otherwise-instant file read takes 182ms, and at 16 threads it returns to 0ms.
+# The risk is not slow hashing — it is that Mongo and Redis reconnects need dns.lookup, so
+# a burst of logins can delay the very reconnect that would end an outage.
+ARG UV_THREADPOOL_SIZE=16
 ENV NODE_ENV=production \
-    PORT=${PORT}
+    PORT=${PORT} \
+    UV_THREADPOOL_SIZE=${UV_THREADPOOL_SIZE}
 
 WORKDIR /app
 
