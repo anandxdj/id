@@ -1,34 +1,44 @@
 import { ApiError } from '../../common/utils/ApiError';
 import { randomBase64Url } from '../../common/utils/crypto.utils';
+import { Config } from '../../common/config/config';
 import {
   CRYPTO,
   ERROR_CODES,
   HTTP_STATUS,
   MILLISECONDS,
   MONGO_ERROR_CODES,
+  REFRESH_OUTCOME,
   REVOKE_REASONS,
   TTL_SECONDS,
 } from '../../common/constants/index.constants';
 import type { RevokeReason } from '../../common/constants/index.constants';
 import { Logger } from '../../common/logger/index.logger';
-import {
-  generateAccessToken,
-  generateRefreshToken,
-  verifyRefreshToken,
-} from '../../common/utils/jwt.utils';
+import { generateAccessToken, verifyRefreshToken } from '../../common/utils/jwt.utils';
 import * as events from '../events/event.service';
 import type { EventContext } from '../events/event.types';
 import { AccessTokenStore } from '../oauth/access-token.store';
 import { AccountState } from './account-state';
+import { DeviceName } from './device-name';
 import { EmailVerificationService } from './email-verification.service';
 import { PasswordService } from './password.service';
 import { LoginThrottleStore } from './login-throttle.store';
+import { RefreshTokenService } from './refresh-token.service';
+import { RefreshTokenStore } from './refresh-token.store';
+import type { IRefreshToken } from './refresh-token.model';
 import { UserStore } from './user.store';
 import type { IUser } from './auth.model';
 import { SessionStore } from './session.store';
 import type { ISession } from './session.model';
 
-/** Keep aligned with JWT_REFRESH_EXPIRES_IN — it also sizes the refresh cookie. */
+/**
+ * Sizes the refresh cookie, and is the session's own lifetime.
+ *
+ * Since M3 the refresh token's absolute window *is* the session's `expiresAt`, so a
+ * refresh token cannot outlive the session it belongs to by construction rather than by
+ * two settings agreeing. `JWT_REFRESH_EXPIRES_IN` no longer sizes it: a rotated child
+ * inherits its parent's `exp`, and re-deriving that from a duration string on every
+ * rotation is precisely how an absolute window turns into a sliding one.
+ */
 export const REFRESH_TTL_SECONDS = TTL_SECONDS.SESSION;
 
 export interface PublicUser {
@@ -65,6 +75,11 @@ export interface SessionMeta {
  */
 export interface SessionView {
   sid: string;
+  /**
+   * "Chrome on Windows", derived from the user agent. Additive — `ua` still carries the
+   * raw string, because a device label is a guess and support needs the original.
+   */
+  deviceName?: string;
   ua?: string;
   ip?: string;
   createdAt: number;
@@ -76,6 +91,7 @@ export interface SessionView {
 // Internal: project a stored session into its API shape.
 const _toSessionView = (session: ISession, currentHandle: string | null): SessionView => ({
   sid: session._id,
+  deviceName: session.deviceName,
   ua: session.userAgent,
   ip: session.ipAddress,
   createdAt: session.createdAt.getTime(),
@@ -87,34 +103,55 @@ const _toSessionView = (session: ISession, currentHandle: string | null): Sessio
   ),
 });
 
-/** Create a session for a user and return the token pair. Shared by password login
- *  and every social connector callback. */
+/**
+ * Create a session for a user and return the token pair. Shared by password login and
+ * every social connector callback.
+ *
+ * One login opens exactly one refresh-token **family**, rooted here. The session document
+ * is written first because it is what every other path gates on; the family is created
+ * against the session's own `expiresAt`, so nothing in it can outlive the session.
+ */
 export const createSession = async (user: IUser, meta: SessionMeta = {}) => {
   const sid = randomBase64Url(CRYPTO.TOKEN_BYTES.SESSION_ID);
   const userId = user._id.toString();
+  const handle = SessionStore.handleOf(sid);
 
   // Calls out to the session store — the only module that touches the collection.
-  await SessionStore.create({
+  const session = await SessionStore.create({
     sid,
     userId,
     role: user.role,
     disabled: user.disabled === true,
+    // Helper: parses and sanitises the user agent, which is untrusted text that ends up
+    // rendered in the account owner's session list.
+    deviceName: DeviceName.from(meta.ua),
     userAgent: meta.ua,
     ipAddress: meta.ip,
   });
+
+  // Calls out to the refresh-token service, which owns rotation policy and the family.
+  const { token: refreshToken, record } = await RefreshTokenService.issueForSession({
+    userId,
+    sid,
+    sessionId: handle,
+    expiresAt: session.expiresAt,
+  });
+  await SessionStore.setCurrentRefreshToken(handle, record._id);
 
   events.record('session.created', {
     actorUserId: userId,
     actorRole: user.role,
     ip: meta.ip,
     ua: meta.ua,
-    // The handle, never the sid: the sid is a credential and the logger must not see it.
-    meta: { session: SessionStore.handleOf(sid) },
+    // The handle and the jti, never the sid or the token: both of those are credentials
+    // and the activity log is queryable by support and by the admin surface.
+    meta: { session: handle, refreshJti: record.tokenJti },
   });
 
   return {
     accessToken: generateAccessToken({ id: userId, sid, role: user.role }),
-    refreshToken: generateRefreshToken({ id: userId, sid }),
+    refreshToken,
+    refreshExpiresAt: session.expiresAt,
   };
 };
 
@@ -133,14 +170,20 @@ export const touchSession = async (userId: string, sid: string | null | undefine
   await SessionStore.touch(userId, SessionStore.handleOf(sid));
 };
 
-/** List a user's live sessions, newest-activity first; flags the caller's own. */
+/**
+ * List a user's live sessions, newest-activity first; flags the caller's own.
+ *
+ * Addressed by **handle**, not sid. Since M3 the middleware puts the handle on
+ * `req.user.sessionId` — the raw sid stays inside the token it was minted into and no
+ * longer travels through request-scoped state, so nothing downstream of authentication
+ * holds a value that could be replayed as a credential.
+ */
 export const listSessions = async (
   userId: string,
-  currentSid?: string | null,
+  currentHandle?: string | null,
 ): Promise<SessionView[]> => {
   const sessions = await SessionStore.listActive(userId);
-  const currentHandle = currentSid ? SessionStore.handleOf(currentSid) : null;
-  return sessions.map((session) => _toSessionView(session, currentHandle));
+  return sessions.map((session) => _toSessionView(session, currentHandle ?? null));
 };
 
 /**
@@ -155,21 +198,30 @@ export const revokeSession = async (
 ): Promise<boolean> => {
   const revoked = await SessionStore.revoke(userId, handle, reason);
   if (revoked) {
+    // Sessions and refresh-token families are revoked together, always, in this one
+    // place. Until M3 a refresh token was a bare JWT gated on its session, so killing the
+    // session was enough; now the family is durable and would outlive it. Splitting the
+    // two across call sites is exactly how the reference ends up revoking the session row
+    // and leaving the refresh token live (§2.3-15).
+    await RefreshTokenStore.revokeForSession(userId, handle, reason);
     events.record('session.revoked', { actorUserId: userId, ...ctx, meta: { session: handle, reason } });
   }
   return revoked;
 };
 
-/** Revoke every session for a user (optionally sparing the caller's). Returns the count. */
+/** Revoke every session for a user (optionally sparing one, by handle). Returns the count. */
 export const revokeAllSessions = async (
   userId: string,
-  exceptSid?: string | null,
+  exceptHandle?: string | null,
   ctx: Pick<EventContext, 'ip' | 'ua' | 'actorRole'> = {},
   reason: RevokeReason = REVOKE_REASONS.USER_LOGOUT_ALL,
 ): Promise<number> => {
-  const count = await SessionStore.revokeAll(userId, {
-    exceptHandle: exceptSid ? SessionStore.handleOf(exceptSid) : null,
+  const count = await SessionStore.revokeAll(userId, { exceptHandle: exceptHandle ?? null, reason });
+  // Unconditional, unlike the single-session path: a `count` of zero only means no
+  // session was still live, which is not the same as no refresh token still being usable.
+  await RefreshTokenStore.revokeAllForUser(userId, {
     reason,
+    exceptSessionId: exceptHandle ?? null,
   });
   if (count > 0) {
     events.record('session.revoked', {
@@ -181,23 +233,77 @@ export const revokeAllSessions = async (
   return count;
 };
 
+/** What a full credential revocation actually killed. */
+export interface RevocationSummary {
+  sessionsRevoked: number;
+  refreshTokensRevoked: number;
+  accessTokensRevoked: number;
+}
+
 /**
- * Revoke every credential a user holds: sessions and OIDC access tokens.
+ * Revoke every credential a user holds: sessions, refresh-token families, and OIDC access
+ * tokens.
  *
- * One function so password reset, account closure, and any future admin action cannot
- * revoke different subsets of the same thing. Refresh tokens are covered transitively —
- * today's refresh token is a bare JWT whose validity is gated on the session existing
- * (see `refresh` below), so killing the session kills it. When M3 gives refresh tokens
- * their own collection, this is the single place that gains a third fan-out.
+ * One function so password reset, account closure, suspension, and role change cannot
+ * revoke different subsets of the same thing. That is not hypothetical tidiness — the
+ * reference revokes the session row on all four paths and leaves refresh tokens and
+ * third-party access tokens live on every one of them (§2.3-15), which is what happens
+ * when the fan-out is written out four times.
+ *
+ * M2 could get away with two fan-outs because a refresh token was a bare JWT gated on its
+ * session existing. It is a durable record now, so this is the third.
  */
 export const revokeAllCredentials = async (
   userId: string,
   reason: RevokeReason,
   ctx: Pick<EventContext, 'ip' | 'ua' | 'actorRole'> = {},
-): Promise<{ sessionsRevoked: number; accessTokensRevoked: number }> => {
+): Promise<RevocationSummary> => {
+  // Sessions first: everything else gates on the session, so this is the write that
+  // actually ends the user's authority. The rest is cleaning up what it left behind.
   const sessionsRevoked = await revokeAllSessions(userId, null, ctx, reason);
+  const refreshTokensRevoked = await RefreshTokenStore.revokeAllForUser(userId, { reason });
   const accessTokensRevoked = await AccessTokenStore.revokeAllForUser(userId, reason);
-  return { sessionsRevoked, accessTokensRevoked };
+  return { sessionsRevoked, refreshTokensRevoked, accessTokensRevoked };
+};
+
+/**
+ * Propagate a change to the denormalised account snapshot the middleware now trusts.
+ *
+ * **This is the precondition for that trust, not a nicety.** `auth.middleware` reads
+ * `role` and `disabled` off the session document and no longer re-reads the user, which
+ * removes a database round-trip from the hottest path in the system — and turns a stale
+ * snapshot into a privilege bug. A demoted admin who kept their session would keep admin
+ * until it expired.
+ *
+ * Two writes, in this order, and the order is the point:
+ *
+ *  1. **Re-stamp the snapshot** on every live session. Covers the narrow race where a
+ *     session is created between the user write and step 2.
+ *  2. **Revoke them all.** This is what makes staleness impossible rather than unlikely:
+ *     no session survives the change, so no session can disagree with the user document.
+ *
+ * Step 2 alone would be sufficient, which is exactly why step 1 is cheap insurance.
+ */
+/**
+ * Re-stamp the snapshot without revoking anything.
+ *
+ * The narrow case: a change that *widens* what a session may do (reinstatement), where
+ * signing the user out would be gratuitous. Never use it for a change that narrows
+ * authority — that is what `applyAccountSnapshotChange` is for.
+ */
+export const applySessionSnapshot = (
+  userId: string,
+  snapshot: { role?: string; disabled?: boolean },
+): Promise<number> => SessionStore.applySnapshot(userId, snapshot);
+
+export const applyAccountSnapshotChange = async (
+  userId: string,
+  snapshot: { role?: string; disabled?: boolean },
+  reason: RevokeReason,
+  ctx: Pick<EventContext, 'ip' | 'ua' | 'actorRole'> = {},
+): Promise<RevocationSummary> => {
+  await SessionStore.applySnapshot(userId, snapshot);
+  return revokeAllCredentials(userId, reason, ctx);
 };
 
 export { toPublic };
@@ -395,34 +501,148 @@ const _upgradePasswordHash = async (user: IUser, plaintext: string): Promise<voi
   }
 };
 
-/** Reissue an access token from a valid, still-whitelisted refresh token. */
-export const refresh = async (refreshToken: string | undefined) => {
-  if (!refreshToken) throw ApiError.unauthorized('Missing refresh token');
+export interface RefreshResult {
+  accessToken: string;
+  /** The successor. The caller must replace the client's cookie with it. */
+  refreshToken: string;
+  /** Absolute, inherited from the family — used to size the replacement cookie. */
+  refreshExpiresAt: Date;
+}
+
+/**
+ * Rotate a refresh token: spend the presented one, issue its successor, mint a fresh
+ * access token.
+ *
+ * The rotation itself, and the judgement about whether a replay is a race or a theft,
+ * live in `refresh-token.service.ts`. What lives here is the *consequence*: turning an
+ * outcome into an HTTP-shaped answer, and — for reuse — into the revocation fan-out.
+ *
+ * Note the order of the validations after a successful claim. The presented token is
+ * already spent by then, deliberately: a token presented against a dead session must not
+ * remain replayable just because the session check failed.
+ */
+export const refresh = async (
+  refreshToken: string | undefined,
+  ctx: Pick<EventContext, 'ip' | 'ua'> = {},
+): Promise<RefreshResult> => {
+  if (!refreshToken) {
+    throw ApiError.fromCode(HTTP_STATUS.UNAUTHORIZED, ERROR_CODES.REFRESH_TOKEN_MISSING);
+  }
 
   let decoded;
   try {
     decoded = verifyRefreshToken(refreshToken);
   } catch {
-    throw ApiError.unauthorized('Invalid or expired refresh token');
+    throw ApiError.fromCode(HTTP_STATUS.UNAUTHORIZED, ERROR_CODES.REFRESH_TOKEN_INVALID);
+  }
+
+  // Calls out to the refresh-token service, which owns the compare-and-set and the
+  // race-versus-theft judgement.
+  const rotation = await RefreshTokenService.rotate(refreshToken, decoded.sid);
+
+  if (rotation.outcome === REFRESH_OUTCOME.REUSE_DETECTED) {
+    await _handleReuse(rotation.presented, ctx);
+    throw ApiError.fromCode(HTTP_STATUS.UNAUTHORIZED, ERROR_CODES.REFRESH_TOKEN_REUSED);
+  }
+  if (rotation.outcome === REFRESH_OUTCOME.IN_FLIGHT) {
+    // Distinct, and retriable: a rotation is provably underway but its successor is not
+    // readable yet. Answering 401 here would sign out a client that did nothing wrong.
+    throw ApiError.fromCode(HTTP_STATUS.CONFLICT, ERROR_CODES.REFRESH_IN_FLIGHT);
+  }
+  if (!rotation.token || !rotation.record) {
+    // Unknown, revoked, or expired — all one answer. Telling them apart would confirm to
+    // a holder of a made-up token that some other token had once been real.
+    throw ApiError.fromCode(HTTP_STATUS.UNAUTHORIZED, ERROR_CODES.REFRESH_TOKEN_INVALID);
   }
 
   const session = await findActiveSession(decoded.id, decoded.sid);
-  if (!session) throw ApiError.unauthorized('Session expired or revoked');
+  if (!session) {
+    // The presented token is spent and its successor was never handed out; kill the
+    // successor too rather than leaving a live token attached to a dead session.
+    await RefreshTokenStore.revokeOne(rotation.record._id, REVOKE_REASONS.ADMIN_REVOKED);
+    throw ApiError.fromCode(HTTP_STATUS.UNAUTHORIZED, ERROR_CODES.SESSION_INVALID);
+  }
 
   // Through the store, so `deletedAt: null` is enforced here as on every other credential
   // path — a closed account must not be able to mint a fresh access token from a refresh
-  // token issued before closure.
+  // token issued before closure. This read stays, unlike the one the middleware dropped:
+  // refresh runs once per access-token lifetime, not once per request.
   const user = await UserStore.findLiveById(decoded.id);
-  if (!user) throw ApiError.unauthorized('User no longer exists');
+  if (!user) throw ApiError.fromCode(HTTP_STATUS.UNAUTHORIZED, ERROR_CODES.SESSION_INVALID);
   AccountState.assertUsable(user);
 
-  const accessToken = generateAccessToken({ id: decoded.id, sid: decoded.sid, role: user.role });
-  return { accessToken };
+  // Advance the session's pointer at the leaf. Best-effort and non-authoritative — the
+  // compare-and-set on the token row is what decides validity — so it is written last,
+  // where a failure costs an out-of-date field on an admin screen and nothing more. Idempotent
+  // on the grace path, where the pointer is already where it should be.
+  await SessionStore.setCurrentRefreshToken(session._id, rotation.record._id);
+
+  return {
+    accessToken: generateAccessToken({ id: decoded.id, sid: decoded.sid, role: user.role }),
+    refreshToken: rotation.token,
+    refreshExpiresAt: rotation.record.expiresAt,
+  };
 };
 
-export const logout = async (userId: string, sid: string | null) => {
-  if (!sid) return;
-  await SessionStore.revoke(userId, SessionStore.handleOf(sid), REVOKE_REASONS.USER_LOGOUT);
+/**
+ * Internal: an already-rotated token was presented outside the grace window.
+ *
+ * Either the token was stolen and the thief is late, or the legitimate client has been
+ * cloned. Both mean the family is compromised, and the response is to kill it — including
+ * the attacker's own descendants, which is the part that makes rotation worth having. A
+ * thief who used a token *before* the legitimate client rotates wins that round; what
+ * they cannot do is keep the access, because the legitimate client's next refresh trips
+ * this same check from the other side.
+ *
+ * Order: **session first**, because it is what every authenticated request gates on and
+ * therefore what actually ends the access. Then the family, then the audit event.
+ *
+ * Blast radius is the family and its session, not every session the user holds. Killing
+ * everything punishes a user whose other devices are demonstrably fine and makes any
+ * false positive catastrophic; the stricter posture is available as a setting for
+ * deployments that want it, and is deliberately not the default.
+ */
+const _handleReuse = async (
+  presented: IRefreshToken | undefined,
+  ctx: Pick<EventContext, 'ip' | 'ua'>,
+): Promise<void> => {
+  if (!presented) return;
+  const userId = presented.userId.toString();
+
+  await revokeSession(userId, presented.sessionId, ctx, REVOKE_REASONS.TOKEN_REUSE_DETECTED);
+  const familyRevoked = await RefreshTokenStore.revokeFamily(
+    presented.familyId,
+    REVOKE_REASONS.TOKEN_REUSE_DETECTED,
+  );
+
+  const allSessions = Config.sessions.reuseRevokesAllSessions;
+  if (allSessions) {
+    await revokeAllCredentials(userId, REVOKE_REASONS.TOKEN_REUSE_DETECTED, ctx);
+  }
+
+  Logger.warn('Refresh token reuse detected — family revoked', {
+    jti: presented.tokenJti,
+    familyRevoked,
+    allSessions,
+  });
+  events.record('refresh.reuse_detected', {
+    actorUserId: userId,
+    ...ctx,
+    // The jti and the handle, never the token: this log is queryable by support.
+    meta: {
+      jti: presented.tokenJti,
+      session: presented.sessionId,
+      familyRevoked,
+      allSessions,
+    },
+  });
+};
+
+export const logout = async (userId: string, handle: string | null) => {
+  if (!handle) return;
+  // Through the service rather than the store, so the refresh family dies with the
+  // session instead of outliving the sign-out.
+  await revokeSession(userId, handle, {}, REVOKE_REASONS.USER_LOGOUT);
 };
 
 export const getMe = async (userId: string) => {

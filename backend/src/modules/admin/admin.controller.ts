@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { ApiResponse } from '../../common/utils/ApiResponse';
 import { ApiError } from '../../common/utils/ApiError';
+import { SUCCESS_MESSAGES } from '../../common/constants/index.constants';
 import { reqContext } from '../events/event.service';
 import type { EventType } from '../events/event.types';
 import * as adminService from './admin.service';
@@ -39,7 +40,16 @@ export const suspendUser = async (req: Request, res: Response) => {
 
 export const unsuspendUser = async (req: Request, res: Response) => {
   const data = await adminService.unsuspendUser(req.params.id!, adminCtx(req));
-  ApiResponse.ok(res, 'User reinstated', data);
+  ApiResponse.ok(res, SUCCESS_MESSAGES.USER_REINSTATED, data);
+};
+
+export const changeUserRole = async (req: Request, res: Response) => {
+  try {
+    const data = await adminService.changeUserRole(req.params.id!, req.body.role, adminCtx(req));
+    ApiResponse.ok(res, SUCCESS_MESSAGES.USER_ROLE_CHANGED, data);
+  } catch (error) {
+    throw error;
+  }
 };
 
 // ── Metrics + activity ───────────────────────────────────────────────────────────

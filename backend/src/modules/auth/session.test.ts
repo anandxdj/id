@@ -90,7 +90,9 @@ test('listSessions returns all of the caller sessions and flags the current one'
   const handleA = SessionStore.handleOf(sidOf(a.refreshToken));
   const handleB = SessionStore.handleOf(sidOf(b.refreshToken));
 
-  const list = await authService.listSessions(USER_ID, sidOf(b.refreshToken));
+  // Addressed by handle: since M3 the middleware puts the handle on `req.user.sessionId`,
+  // so the raw sid never leaves the token it was minted into.
+  const list = await authService.listSessions(USER_ID, handleB);
   assert.equal(list.length, 2);
   assert.equal(list.find((s) => s.sid === handleB)?.current, true);
   assert.equal(list.find((s) => s.sid === handleA)?.current, false);
@@ -185,14 +187,14 @@ test('revokeAllSessions(except) keeps only the caller session and spares other u
   await authService.createSession(fakeUser, { ua: 'other-1' });
   await authService.createSession(fakeUser, { ua: 'other-2' });
   await authService.createSession(userFor(OTHER_USER_ID), { ua: 'bystander' });
-  const keepSid = sidOf(keep.refreshToken);
+  const keepHandle = SessionStore.handleOf(sidOf(keep.refreshToken));
 
-  const revoked = await authService.revokeAllSessions(USER_ID, keepSid);
+  const revoked = await authService.revokeAllSessions(USER_ID, keepHandle);
   assert.equal(revoked, 2);
 
-  const remaining = await authService.listSessions(USER_ID, keepSid);
+  const remaining = await authService.listSessions(USER_ID, keepHandle);
   assert.equal(remaining.length, 1);
-  assert.equal(remaining[0]!.sid, SessionStore.handleOf(keepSid));
+  assert.equal(remaining[0]!.sid, keepHandle);
   assert.equal(remaining[0]!.current, true);
 
   const bystanders = await authService.listSessions(OTHER_USER_ID);

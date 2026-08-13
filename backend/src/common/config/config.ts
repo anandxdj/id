@@ -140,6 +140,12 @@ const build = () => {
       },
     },
 
+    // M3
+    sessions: {
+      /** See REFRESH_REUSE_REVOKES_ALL_SESSIONS in env.ts for the trade-off. */
+      reuseRevokesAllSessions: env.REFRESH_REUSE_REVOKES_ALL_SESSIONS,
+    },
+
     seed: {
       adminEmail: env.SEED_ADMIN_EMAIL,
       adminName: env.SEED_ADMIN_NAME,
@@ -190,6 +196,10 @@ export const Config = {
   },
   get email() {
     return load().email;
+  },
+  // M3
+  get sessions() {
+    return load().sessions;
   },
   get seed() {
     return load().seed;

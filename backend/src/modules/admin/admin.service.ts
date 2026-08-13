@@ -1,5 +1,10 @@
 import { ApiError } from '../../common/utils/ApiError';
-import { REVOKE_REASONS } from '../../common/constants/index.constants';
+import {
+  ERROR_CODES,
+  HTTP_STATUS,
+  REVOKE_REASONS,
+} from '../../common/constants/index.constants';
+import type { UserRole } from '../../common/constants/index.constants';
 import * as authService from '../auth/auth.service';
 import * as accountService from '../account/account.service';
 import * as clientService from '../oauth-client/oauth-client.service';
@@ -66,6 +71,19 @@ export const getUser = async (id: string) => {
   return { user: toAdminUser(user), sessions, apps, activity };
 };
 
+/**
+ * Suspend an account.
+ *
+ * The user document is written first — it is what login gates on — and every credential
+ * the account holds is revoked after it. That fan-out is `revokeAllCredentials` rather
+ * than a session sweep because refresh tokens became durable records in M3: revoking the
+ * session alone would leave the suspended user holding a token that mints a new one. That
+ * is the reference's §2.3-15 exactly.
+ *
+ * The snapshot re-stamp matters for a second reason since M3: `auth.middleware` reads
+ * `disabled` from the session document instead of the user, so a suspension has to reach
+ * the sessions or it does not take effect until they expire.
+ */
 export const suspendUser = async (id: string, reason: string | undefined, ctx: AdminActionCtx) => {
   const user = await User.findByIdAndUpdate(
     id,
@@ -73,15 +91,13 @@ export const suspendUser = async (id: string, reason: string | undefined, ctx: A
     { new: true },
   );
   if (!user) throw ApiError.notFound('User not found');
-  // Sessions now carry a revocation reason, so record why these died rather than
-  // labelling an admin suspension as an ordinary sign-out.
-  const sessionsRevoked = await authService.revokeAllSessions(
+
+  const revoked = await authService.applyAccountSnapshotChange(
     id,
-    null,
-    {},
+    { disabled: true },
     REVOKE_REASONS.USER_SUSPENDED,
   );
-  events.record('admin.user.suspended', { ...ctx, targetUserId: id, meta: { reason, sessionsRevoked } });
+  events.record('admin.user.suspended', { ...ctx, targetUserId: id, meta: { reason, ...revoked } });
   return toAdminUser(user);
 };
 
@@ -92,7 +108,42 @@ export const unsuspendUser = async (id: string, ctx: AdminActionCtx) => {
     { new: true },
   );
   if (!user) throw ApiError.notFound('User not found');
+  // No sessions should exist to re-stamp — suspension revoked them all — but a session
+  // created in the window between the two writes would otherwise carry `disabled: true`
+  // forever, and the middleware now believes that field.
+  await authService.applySessionSnapshot(id, { disabled: false });
   events.record('admin.user.unsuspended', { ...ctx, targetUserId: id });
+  return toAdminUser(user);
+};
+
+/**
+ * Change a user's role, and end every session they hold.
+ *
+ * Revoking rather than merely re-stamping is what makes the denormalised `sessions.role`
+ * safe to trust: no session survives a role change, so no session can carry a role its
+ * user no longer has. A demotion that let the session live would leave a demoted admin
+ * holding admin authority until the session expired — the exact privilege bug that kept
+ * `auth.middleware` re-reading the user until M3.
+ *
+ * Self-targeting is refused. An admin demoting themselves would revoke the session the
+ * request is being made on, which is a footgun rather than a feature; the broader
+ * admin-protects-admin and last-admin guards belong to M5.
+ */
+export const changeUserRole = async (id: string, role: UserRole, ctx: AdminActionCtx) => {
+  if (ctx.actorUserId && ctx.actorUserId === id) {
+    throw ApiError.fromCode(HTTP_STATUS.FORBIDDEN, ERROR_CODES.CANNOT_TARGET_SELF);
+  }
+
+  const user = await User.findByIdAndUpdate(id, { $set: { role } }, { new: true });
+  if (!user) throw ApiError.notFound('User not found');
+
+  const revoked = await authService.applyAccountSnapshotChange(
+    id,
+    { role },
+    REVOKE_REASONS.ROLE_CHANGED,
+    ctx,
+  );
+  events.record('admin.user.role_changed', { ...ctx, targetUserId: id, meta: { role, ...revoked } });
   return toAdminUser(user);
 };
 

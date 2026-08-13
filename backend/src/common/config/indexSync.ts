@@ -4,6 +4,7 @@ import { Logger } from '../logger/index.logger';
 import {
   AUTH_CODE_REPLAY_RETENTION_SECONDS,
   COLLECTIONS,
+  REFRESH_TOKEN,
   TTL_EXPIRE_AT_DATE,
 } from '../constants/index.constants';
 
@@ -74,6 +75,14 @@ const ttlTargets = (): TtlTarget[] => [
     model: COLLECTIONS.LOGIN_THROTTLE,
     field: 'windowExpiresAt',
     expireAfterSeconds: TTL_EXPIRE_AT_DATE,
+  },
+  // M3. Refresh tokens are retained past expiry for the same reason authorization codes
+  // are: a replay has to stay distinguishable from an unknown token, and reaping on the
+  // instant of expiry would silently downgrade the theft signal.
+  {
+    model: COLLECTIONS.REFRESH_TOKEN,
+    field: 'expiresAt',
+    expireAfterSeconds: REFRESH_TOKEN.REPLAY_RETENTION_SECONDS,
   },
 ];
 

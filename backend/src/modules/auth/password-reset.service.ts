@@ -13,6 +13,7 @@ import { ActionTokenStore } from './action-token.store';
 import { PasswordService } from './password.service';
 import { UserStore } from './user.store';
 import { revokeAllCredentials } from './auth.service';
+import type { RevocationSummary } from './auth.service';
 
 /**
  * Forgot / reset password.
@@ -78,7 +79,7 @@ export const PasswordResetService = {
   async reset(
     input: { token: string; password: string },
     ctx: ActionCtx = {},
-  ): Promise<{ sessionsRevoked: number; accessTokensRevoked: number }> {
+  ): Promise<RevocationSummary> {
     // Step 1 and 2: the atomic claim and every account guard, single-sourced so this flow and
     // verification cannot disagree about what a redeemable token is.
     const { user } = await ActionTokenRedemption.redeem(
@@ -110,7 +111,7 @@ export const PasswordResetService = {
       actorUserId: userId,
       actorRole: user.role,
       ...ctx,
-      meta: revoked,
+      meta: { ...revoked },
     });
 
     return revoked;

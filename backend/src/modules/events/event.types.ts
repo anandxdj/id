@@ -15,6 +15,13 @@ export const EVENT_TYPES = [
   'logout',
   'session.created',
   'session.revoked',
+  /**
+   * An already-rotated refresh token was presented outside the grace window — theft, or a
+   * cloned client. The whole family and its session are revoked, and this is the only
+   * place the difference between that and an ordinary expired token is visible: the
+   * client is told the same thing either way. (M3)
+   */
+  'refresh.reuse_detected',
   // identity lifecycle (M2)
   'register',
   'email.verification.sent',
@@ -42,6 +49,8 @@ export const EVENT_TYPES = [
   // admin mutations (audited)
   'admin.user.suspended',
   'admin.user.unsuspended',
+  /** A role was reassigned, which revokes every session the target holds. (M3) */
+  'admin.user.role_changed',
   'admin.client.created',
   'admin.client.updated',
   'admin.client.secret_rotated',

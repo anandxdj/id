@@ -29,6 +29,7 @@
     "mongoose": "^8.10.1",
     "node-jose": "^2.2.0",
     "rate-limit-redis": "^4.3.1",
+    "ua-parser-js": "^2.0.10",
     "zod": "^3.24.1"
   },
   "devDependencies": {

@@ -131,6 +131,22 @@ const envSchema = z
     RESEND_API_KEY: z.string().min(1).optional(),
     EMAIL_FROM: z.string().min(1).optional(),
 
+    // ── Sessions / refresh tokens (M3) ───────────────────────────────────────
+    /**
+     * Blast radius of refresh-token reuse detection.
+     *
+     * Default (`false`): kill the offending family and the session it belongs to. That is
+     * the proportionate response — the compromise is scoped to one login, and a false
+     * positive costs the user one device rather than all of them.
+     *
+     * `true` is the paranoid posture: any reuse anywhere signs the account out
+     * everywhere. Defensible for a high-value tenant, and wrong as a default, because it
+     * makes every false positive catastrophic and punishes a user whose other devices are
+     * demonstrably fine. It is a setting rather than a hardcode precisely because which
+     * one is right depends on what the deployment is protecting.
+     */
+    REFRESH_REUSE_REVOKES_ALL_SESSIONS: booleanish('false'),
+
     // ── Seed ─────────────────────────────────────────────────────────────────
     SEED_ADMIN_EMAIL: z.string().email().optional(),
     SEED_ADMIN_NAME: z.string().min(1).optional(),

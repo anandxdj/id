@@ -5,6 +5,7 @@ import { authenticate, authorize } from '../auth/auth.middleware';
 import { createClientSchema } from './dto/create-client.schema';
 import { updateClientSchema } from './dto/update-client.schema';
 import { suspendUserSchema } from './dto/suspend-user.schema';
+import { changeRoleSchema } from './dto/change-role.schema';
 import * as controller from './admin.controller';
 
 const router = Router();
@@ -17,6 +18,9 @@ router.get('/users', asyncHandler(controller.listUsers));
 router.get('/users/:id', asyncHandler(controller.getUser));
 router.post('/users/:id/suspend', validate(suspendUserSchema), asyncHandler(controller.suspendUser));
 router.post('/users/:id/unsuspend', asyncHandler(controller.unsuspendUser));
+// M3: a role change revokes every session the target holds, which is the precondition for
+// `auth.middleware` trusting the role denormalised onto the session document.
+router.patch('/users/:id/role', validate(changeRoleSchema), asyncHandler(controller.changeUserRole));
 
 // Monitoring
 router.get('/metrics', asyncHandler(controller.metrics));

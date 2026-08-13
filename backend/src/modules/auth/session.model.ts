@@ -30,13 +30,29 @@ export interface ISession {
   _id: string;
   userId: mongoose.Types.ObjectId;
   /**
-   * Snapshot of the account state at sign-in, denormalised per plan §4.2 so the
-   * per-request `User.findById` can eventually be dropped. NOT yet authoritative:
-   * the middleware still re-reads the user, because trusting a stale snapshot is only
-   * safe once every role/suspension change revokes sessions (M3).
+   * Snapshot of the account state at sign-in, denormalised per plan §4.2 — and, since
+   * M3, **authoritative**: `auth.middleware` reads authority from here and no longer
+   * re-reads the user on every request.
+   *
+   * That is only safe because the snapshot cannot go stale. Every mutation that would
+   * invalidate it — role change, suspension, closure, password reset — revokes the
+   * affected sessions before the change is observable, so a session that still resolves
+   * is a session whose snapshot still matches. `disabled` is therefore belt-and-braces
+   * rather than the gate: a suspended user has no live session to read it from.
+   *
+   * The ordering matters and it is the reason this flip happened in M3 and not M1: the
+   * revocation had to exist and be tested first. Flip the read path before that and a
+   * demoted admin keeps admin until their session expires.
    */
   role: string;
   disabled: boolean;
+  /**
+   * The live leaf of this session's refresh-token family. Points at `refreshTokens._id`.
+   * Informational — rotation is a compare-and-set on the token itself, never on this
+   * pointer, so a stale value can be wrong without being dangerous.
+   */
+  currentRefreshTokenId?: mongoose.Types.ObjectId | null;
+  /** Human-readable label derived from the user agent. See `device-name.ts`. */
   deviceName?: string;
   userAgent?: string;
   ipAddress?: string;
@@ -53,6 +69,7 @@ const sessionSchema = new mongoose.Schema<ISession>(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: COLLECTIONS.USER, required: true },
     role: { type: String, required: true },
     disabled: { type: Boolean, default: false },
+    currentRefreshTokenId: { type: mongoose.Schema.Types.ObjectId, default: null },
     deviceName: { type: String, maxlength: FIELD_LIMITS.DEVICE_NAME },
     userAgent: { type: String, maxlength: FIELD_LIMITS.USER_AGENT },
     ipAddress: { type: String, maxlength: FIELD_LIMITS.IP_ADDRESS },

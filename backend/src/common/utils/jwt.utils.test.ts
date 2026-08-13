@@ -17,9 +17,16 @@ test('access token round-trips id/sid/role', async () => {
 
 test('refresh token verifies with the refresh secret, not the access secret', async () => {
   const { generateRefreshToken, verifyRefreshToken, verifyAccessToken } = await import('./jwt.utils');
-  const token = generateRefreshToken({ id: 'u1', sid: 's1' });
+  const now = Math.floor(Date.now() / 1000);
+  const claims = { id: 'u1', sid: 's1', jti: 'j1', iat: now, exp: now + 60 };
+  const token = generateRefreshToken(claims);
   assert.equal(verifyRefreshToken(token).id, 'u1');
   assert.throws(() => verifyAccessToken(token), 'access secret must reject a refresh token');
+
+  // Deterministic: the grace-window path reproduces a successor token from its stored
+  // record instead of keeping the plaintext around, and that only works if signing the
+  // same claims twice yields the same bytes.
+  assert.equal(generateRefreshToken(claims), token, 'same claims, same token');
 });
 
 test('a tampered token fails verification', async () => {

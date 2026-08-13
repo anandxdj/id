@@ -23,6 +23,7 @@ import {
   LOGIN_THROTTLE,
   PASSWORD_ALGORITHMS,
   RATE_LIMIT_SCOPES,
+  REFRESH_TOKEN_STATUS,
   REDIS_KEYS,
   SUCCESS_MESSAGES,
 } from '../../common/constants/index.constants';
@@ -142,6 +143,7 @@ const resetLimiters = async () => {
 const clearData = async () => {
   const { User } = await import('./auth.model');
   const { Session } = await import('./session.model');
+  const { RefreshToken } = await import('./refresh-token.model');
   const { AuthActionToken } = await import('./action-token.model');
   const { LoginThrottle } = await import('./login-throttle.model');
   const { hashToken } = await import('../../common/utils/crypto.utils');
@@ -154,6 +156,7 @@ const clearData = async () => {
     .lean();
   const ids = users.map((u) => u._id);
   await Session.deleteMany({ userId: { $in: ids } });
+  await RefreshToken.deleteMany({ userId: { $in: ids } });
   await AuthActionToken.deleteMany({ userId: { $in: ids } });
   await User.deleteMany({ _id: { $in: ids } });
   await LoginThrottle.deleteMany({ _id: { $in: EMAILS.map((e) => hashToken(e)) } });
@@ -673,6 +676,17 @@ test('closing an account revokes everything and frees the address for re-registr
   assert.notEqual(tombstoned.email, CLOSING_USER, 'and moved off the live unique index');
 
   assert.equal(await Session.countDocuments({ userId: before._id, revokedAt: null }), 0);
+  // M3: refresh tokens are durable records now, so closure has to reach them explicitly
+  // rather than relying on the session dying underneath them.
+  const { RefreshToken } = await import('./refresh-token.model');
+  assert.equal(
+    await RefreshToken.countDocuments({
+      userId: before._id,
+      status: REFRESH_TOKEN_STATUS.ACTIVE,
+    }),
+    0,
+    'and no refresh token outlives the account',
+  );
   assert.equal(
     (await api('/api/auth/me', { headers: { authorization: `Bearer ${accessToken}` } })).status,
     401,

@@ -63,20 +63,28 @@ export const revokeApp = async (
   return { revokedTokens };
 };
 
-export const listSessions = (userId: string, currentSid?: string | null) =>
-  authService.listSessions(userId, currentSid);
+/**
+ * Sessions are addressed by **handle** throughout this surface — the value the API
+ * publishes as `sid`, and the value the middleware puts on `req.user.sessionId`. The raw
+ * session id stays inside the token it was minted into and never reaches a controller.
+ */
+export const listSessions = (userId: string, currentHandle?: string | null) =>
+  authService.listSessions(userId, currentHandle);
 
 export const revokeSession = async (
   userId: string,
-  sid: string,
+  handle: string,
   ctx: ActionCtx = {},
 ): Promise<void> => {
-  const ok = await authService.revokeSession(userId, sid, ctx);
+  const ok = await authService.revokeSession(userId, handle, ctx);
   if (!ok) throw ApiError.notFound('No such session');
 };
 
-export const revokeAllSessions = (userId: string, exceptSid?: string | null, ctx: ActionCtx = {}) =>
-  authService.revokeAllSessions(userId, exceptSid, ctx);
+export const revokeAllSessions = (
+  userId: string,
+  exceptHandle?: string | null,
+  ctx: ActionCtx = {},
+) => authService.revokeAllSessions(userId, exceptHandle, ctx);
 
 const toProfile = (u: {
   _id: { toString(): string };
@@ -117,7 +125,9 @@ export const updateProfile = async (userId: string, input: ProfileInput) => {
 
 export interface DeletionSummary {
   sessionsRevoked: number;
-  accessTokensRevoked: number
+  /** M3: refresh tokens are durable records now, so they are revoked explicitly. */
+  refreshTokensRevoked: number;
+  accessTokensRevoked: number;
   consentsRevoked: number;
   identitiesUnlinked: number;
   actionTokensRevoked: number;
@@ -162,11 +172,8 @@ export const deleteAccount = async (
   const closed = await UserStore.softDelete(userId);
   if (!closed) throw ApiError.notFound('User not found');
 
-  const { sessionsRevoked, accessTokensRevoked } = await authService.revokeAllCredentials(
-    userId,
-    REVOKE_REASONS.USER_DELETED,
-    ctx,
-  );
+  const { sessionsRevoked, refreshTokensRevoked, accessTokensRevoked } =
+    await authService.revokeAllCredentials(userId, REVOKE_REASONS.USER_DELETED, ctx);
 
   const actionTokensRevoked = await ActionTokenStore.revokeAllForUser(
     userId,
@@ -180,6 +187,7 @@ export const deleteAccount = async (
 
   const summary: DeletionSummary = {
     sessionsRevoked,
+    refreshTokensRevoked,
     accessTokensRevoked,
     consentsRevoked: consents.deletedCount ?? 0,
     identitiesUnlinked: identities.deletedCount ?? 0,

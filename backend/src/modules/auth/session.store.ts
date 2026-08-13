@@ -29,6 +29,7 @@ interface CreateSessionInput {
   userId: string;
   role: string;
   disabled: boolean;
+  deviceName?: string;
   userAgent?: string;
   ipAddress?: string;
 }
@@ -53,14 +54,56 @@ export const SessionStore = {
       userId: new mongoose.Types.ObjectId(input.userId),
       role: input.role,
       disabled: input.disabled,
+      deviceName: input.deviceName,
       userAgent: input.userAgent,
       ipAddress: input.ipAddress,
       createdAt: now,
       lastSeenAt: now,
       revokedAt: null,
+      currentRefreshTokenId: null,
       expiresAt: new Date(now.getTime() + TTL_SECONDS.SESSION * MILLISECONDS.SECOND),
     });
     return created.toObject();
+  },
+
+  /**
+   * Point a session at the live leaf of its refresh-token family.
+   *
+   * Best-effort and non-authoritative: rotation is a compare-and-set on the token row, so
+   * this pointer being momentarily behind changes nothing about which token is valid. It
+   * exists for the admin/session surface and for support.
+   */
+  async setCurrentRefreshToken(
+    handle: string,
+    refreshTokenId: mongoose.Types.ObjectId,
+  ): Promise<void> {
+    await Session.updateOne(
+      _activeFilter({ _id: handle }),
+      { $set: { currentRefreshTokenId: refreshTokenId } },
+    );
+  },
+
+  /**
+   * Re-stamp the denormalised account snapshot on every live session for one user.
+   *
+   * The middleware trusts `role` and `disabled` since M3, so anything that changes them
+   * on the user document has to reach the sessions too. In practice every such mutation
+   * *also* revokes those sessions, which makes this belt-and-braces — but the belt is
+   * cheap, and the failure mode it covers (a session created in the instant between the
+   * user write and the revocation) is precisely the kind of race that turns a snapshot
+   * into a privilege bug.
+   */
+  async applySnapshot(
+    userId: string,
+    snapshot: { role?: string; disabled?: boolean },
+  ): Promise<number> {
+    const update = {
+      ...(snapshot.role === undefined ? {} : { role: snapshot.role }),
+      ...(snapshot.disabled === undefined ? {} : { disabled: snapshot.disabled }),
+    };
+    if (Object.keys(update).length === 0) return 0;
+    const result = await Session.updateMany(_activeFilter({ userId }), { $set: update });
+    return result.modifiedCount;
   },
 
   /** Resolve a live session. Scoped by user so a handle alone is never sufficient. */

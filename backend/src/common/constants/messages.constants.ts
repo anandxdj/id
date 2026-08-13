@@ -117,6 +117,8 @@ export const SUCCESS_MESSAGES = {
   CLIENT_SECRET_ROTATED: 'Client secret rotated — the previous secret is now invalid',
   USER_SUSPENDED: 'User suspended',
   USER_REINSTATED: 'User reinstated',
+  // M3
+  USER_ROLE_CHANGED: 'Role updated — every session for this user has been signed out',
   METRICS_RETRIEVED: 'Metrics retrieved',
   ACTIVITY_RETRIEVED: 'Activity retrieved',
   CONSENT_RECORDED: 'Consent recorded',

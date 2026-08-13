@@ -36,7 +36,13 @@ const _sanitizeUnexpected = (error: unknown): ApiError => {
   return ApiError.fromCode(HTTP_STATUS.BAD_REQUEST, ERROR_CODES.INVALID_ACTION_TOKEN);
 };
 
-const refreshCookieOptions = (): CookieOptions => ({
+/**
+ * `expiresAt` is passed on every rotation so the cookie's lifetime tracks the family's
+ * **absolute** window rather than being reset to a full session length each time. Without
+ * it the cookie would outlive the token inside it, and a client would keep presenting a
+ * credential the server had already stopped honouring.
+ */
+const refreshCookieOptions = (expiresAt?: Date): CookieOptions => ({
   httpOnly: true,
   // Driven by COOKIE_SECURE, which the config layer forces to `true` in production.
   // Inferring it from NODE_ENV breaks HTTPS-terminating dev proxies and silently
@@ -45,7 +51,9 @@ const refreshCookieOptions = (): CookieOptions => ({
   sameSite: COOKIE_SAME_SITE,
   path: '/',
   ...(Config.cookie.domain ? { domain: Config.cookie.domain } : {}),
-  maxAge: authService.REFRESH_TTL_SECONDS * MILLISECONDS.SECOND,
+  maxAge: expiresAt
+    ? Math.max(0, expiresAt.getTime() - Date.now())
+    : authService.REFRESH_TTL_SECONDS * MILLISECONDS.SECOND,
 });
 
 /**
@@ -176,8 +184,8 @@ export const login = async (req: Request, res: Response) => {
     });
     throw err;
   }
-  const { user, accessToken, refreshToken } = result;
-  res.cookie(COOKIE_NAMES.REFRESH_TOKEN, refreshToken, refreshCookieOptions());
+  const { user, accessToken, refreshToken, refreshExpiresAt } = result;
+  res.cookie(COOKIE_NAMES.REFRESH_TOKEN, refreshToken, refreshCookieOptions(refreshExpiresAt));
   events.record('login.success', {
     actorUserId: user._id,
     actorRole: user.role,
@@ -186,10 +194,39 @@ export const login = async (req: Request, res: Response) => {
   ApiResponse.ok(res, 'Logged in', { user, accessToken });
 };
 
+/**
+ * Rotate the refresh token and hand back a fresh access token.
+ *
+ * The refresh cookie is **replaced** on every call now that tokens rotate: the presented
+ * one is spent, and leaving it in the browser would guarantee that the client's next
+ * refresh trips reuse detection on a token it was never told to stop using.
+ *
+ * On failure the cookie is cleared instead. A client holding a token that has been
+ * revoked — or that just got its whole family killed — should stop presenting it rather
+ * than retry into the same wall, and a dead cookie is the only way to say so over a
+ * response the frontend may not be reading closely.
+ */
 export const refreshToken = async (req: Request, res: Response) => {
-  const token = req.cookies?.refreshToken as string | undefined;
-  const { accessToken } = await authService.refresh(token);
-  ApiResponse.ok(res, 'Token refreshed', { accessToken });
+  const token = req.cookies?.[COOKIE_NAMES.REFRESH_TOKEN] as string | undefined;
+  try {
+    const result = await authService.refresh(token, events.reqContext(req));
+    res.cookie(
+      COOKIE_NAMES.REFRESH_TOKEN,
+      result.refreshToken,
+      refreshCookieOptions(result.refreshExpiresAt),
+    );
+    ApiResponse.ok(res, SUCCESS_MESSAGES.TOKEN_REFRESHED, { accessToken: result.accessToken });
+  } catch (error) {
+    // A retriable in-flight collision is not a dead credential — the client still holds a
+    // token that will work on the next attempt, so leave the cookie alone.
+    const retriable =
+      error instanceof ApiError && error.code === ERROR_CODES.REFRESH_IN_FLIGHT;
+    if (!retriable) {
+      res.clearCookie(COOKIE_NAMES.REFRESH_TOKEN, { path: '/' });
+      res.clearCookie(COOKIE_NAMES.ACCESS_TOKEN, { path: '/' });
+    }
+    throw error;
+  }
 };
 
 export const logout = async (req: Request, res: Response) => {
@@ -202,8 +239,8 @@ export const logout = async (req: Request, res: Response) => {
     });
   }
   res.clearCookie(COOKIE_NAMES.REFRESH_TOKEN, { path: '/' });
-  res.clearCookie('accessToken', { path: '/' });
-  ApiResponse.ok(res, 'Logged out');
+  res.clearCookie(COOKIE_NAMES.ACCESS_TOKEN, { path: '/' });
+  ApiResponse.ok(res, SUCCESS_MESSAGES.LOGGED_OUT);
 };
 
 export const getMe = async (req: Request, res: Response) => {
@@ -257,8 +294,11 @@ export const oauthCallback = async (req: Request, res: Response) => {
   try {
     const profile = await connector.exchange(code, callbackUri(provider));
     const user = await findOrCreateFromProfile(profile);
-    const { accessToken, refreshToken } = await authService.createSession(user, events.reqContext(req));
-    res.cookie(COOKIE_NAMES.REFRESH_TOKEN, refreshToken, refreshCookieOptions());
+    const { accessToken, refreshToken, refreshExpiresAt } = await authService.createSession(
+      user,
+      events.reqContext(req),
+    );
+    res.cookie(COOKIE_NAMES.REFRESH_TOKEN, refreshToken, refreshCookieOptions(refreshExpiresAt));
     events.record('login.success', {
       actorUserId: user._id.toString(),
       actorRole: user.role,
