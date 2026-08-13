@@ -1,0 +1,189 @@
+import { Env, DEV_DEFAULTS } from './env';
+import { SECONDS } from '../constants/index.constants';
+
+/**
+ * The single frozen configuration surface. Consume it as `Config.jwt.accessSecret`,
+ * never `process.env.JWT_ACCESS_SECRET`.
+ *
+ * Each accessor is a getter over a memoised, deep-frozen object, so:
+ *   - nothing reads the environment at module-load time (imports stay side-effect free,
+ *     which is what lets the integration tests set env vars before touching a route), and
+ *   - no consumer can mutate shared config at runtime.
+ */
+
+const deepFreeze = <T>(value: T): T => {
+  if (value === null || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  for (const key of Object.getOwnPropertyNames(value)) {
+    deepFreeze((value as Record<string, unknown>)[key]);
+  }
+  return Object.freeze(value);
+};
+
+const stripTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
+
+const build = () => {
+  const env = Env.load();
+
+  const frontendUrl = env.FRONTEND_URL ? stripTrailingSlash(env.FRONTEND_URL) : undefined;
+
+  // Explicit allowlist wins; FRONTEND_URL is the single-origin convenience path.
+  // Never falls back to a reflect-any-origin value — production requires one of the two
+  // to be set (see the CORS check in env.ts), and dev gets localhost rather than `true`.
+  const corsOrigins = (() => {
+    const explicit = Env.toList(env.CORS_ORIGINS);
+    if (explicit.length > 0) return explicit;
+    if (frontendUrl) return [frontendUrl];
+    return env.NODE_ENV === 'production' ? [] : [DEV_DEFAULTS.CORS_ORIGIN];
+  })();
+
+  const usingDevSecrets =
+    env.JWT_ACCESS_SECRET === DEV_DEFAULTS.JWT_ACCESS_SECRET ||
+    env.JWT_REFRESH_SECRET === DEV_DEFAULTS.JWT_REFRESH_SECRET;
+
+  const issuer = env.OIDC_ISSUER
+    ? stripTrailingSlash(env.OIDC_ISSUER)
+    : `http://localhost:${env.PORT}`;
+
+  const loginRedirectBase = stripTrailingSlash(
+    env.OIDC_LOGIN_REDIRECT_BASE ?? frontendUrl ?? 'http://localhost:3000',
+  );
+
+  return deepFreeze({
+    server: {
+      env: env.NODE_ENV,
+      isProduction: env.NODE_ENV === 'production',
+      isTest: env.NODE_ENV === 'test',
+      port: env.PORT,
+      trustProxyHops: env.TRUST_PROXY_HOPS,
+      shutdownTimeoutMs: env.SHUTDOWN_TIMEOUT_MS,
+      logLevel: env.LOG_LEVEL,
+      /** True when JWT secrets fell back to the dev sentinels. Impossible in production. */
+      usingDevSecrets,
+    },
+
+    mongo: {
+      uri: env.MONGO_URI,
+      dbName: env.MONGO_DB_NAME,
+    },
+
+    redis: {
+      url: env.REDIS_URL,
+    },
+
+    retention: {
+      eventDays: env.EVENT_RETENTION_DAYS,
+      eventSeconds: env.EVENT_RETENTION_DAYS * SECONDS.DAY,
+    },
+
+    web: {
+      frontendUrl,
+      corsOrigins,
+      loginRedirectBase,
+      consentRedirectBase: stripTrailingSlash(
+        env.OIDC_CONSENT_REDIRECT_BASE ?? frontendUrl ?? loginRedirectBase,
+      ),
+    },
+
+    jwt: {
+      accessSecret: env.JWT_ACCESS_SECRET,
+      refreshSecret: env.JWT_REFRESH_SECRET,
+      accessExpiresIn: env.JWT_ACCESS_EXPIRES_IN,
+      refreshExpiresIn: env.JWT_REFRESH_EXPIRES_IN,
+    },
+
+    cookie: {
+      secure: env.COOKIE_SECURE,
+      domain: env.COOKIE_DOMAIN,
+    },
+
+    oidc: {
+      issuer,
+      keyId: env.OIDC_KEY_ID,
+      privateKeyPem: env.OIDC_RSA_PRIVATE_KEY,
+      privateKeyPath: env.OIDC_RSA_PRIVATE_KEY_PATH,
+    },
+
+    connectors: {
+      /** Optional allowlist restricting which configured connectors are exposed. */
+      enabled: Env.toList(env.AUTH_CONNECTORS),
+      google: {
+        clientId: env.GOOGLE_CLIENT_ID,
+        clientSecret: env.GOOGLE_CLIENT_SECRET,
+      },
+      github: {
+        clientId: env.GITHUB_CLIENT_ID,
+        clientSecret: env.GITHUB_CLIENT_SECRET,
+      },
+    },
+
+    email: {
+      apiKey: env.RESEND_API_KEY,
+      from: env.EMAIL_FROM,
+      get configured(): boolean {
+        return Boolean(env.RESEND_API_KEY && env.EMAIL_FROM);
+      },
+    },
+
+    seed: {
+      adminEmail: env.SEED_ADMIN_EMAIL,
+      adminName: env.SEED_ADMIN_NAME,
+      adminPassword: env.SEED_ADMIN_PASSWORD,
+    },
+  });
+};
+
+type AppConfig = ReturnType<typeof build>;
+
+let cached: AppConfig | undefined;
+
+const load = (): AppConfig => {
+  if (!cached) cached = build();
+  return cached;
+};
+
+export const Config = {
+  get server() {
+    return load().server;
+  },
+  get mongo() {
+    return load().mongo;
+  },
+  get redis() {
+    return load().redis;
+  },
+  get retention() {
+    return load().retention;
+  },
+  get web() {
+    return load().web;
+  },
+  get jwt() {
+    return load().jwt;
+  },
+  get cookie() {
+    return load().cookie;
+  },
+  get oidc() {
+    return load().oidc;
+  },
+  get connectors() {
+    return load().connectors;
+  },
+  get email() {
+    return load().email;
+  },
+  get seed() {
+    return load().seed;
+  },
+
+  /** Force validation now so a bad deployment dies at boot rather than on first request. */
+  validate(): void {
+    load();
+  },
+
+  /** Test-only: re-derive from a mutated `process.env`. */
+  reload(): void {
+    cached = undefined;
+    Env.reset();
+  },
+};
