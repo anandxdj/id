@@ -25,11 +25,20 @@ export interface IOAuthAuthRequest {
   userId: mongoose.Types.ObjectId;
   clientId: string;
   redirectUri: string;
+  /**
+   * The scope the client **requested**. What the user actually approves is recorded on
+   * the consent document, and issuance uses the intersection of the two — conflating
+   * these two things is the scope-escalation bug (plan §2.3-12).
+   */
   scope: string;
   state: string;
   codeChallenge: string;
   codeChallengeMethod: string;
   nonce?: string;
+  /** OIDC Core §3.1.2.1 `prompt`, carried across the consent round-trip. */
+  prompt?: string;
+  /** OIDC Core §3.1.2.1 `max_age`, in seconds. */
+  maxAge?: number;
   consumedAt: Date | null;
   createdAt: Date;
   expiresAt: Date;
@@ -50,6 +59,8 @@ const oauthAuthRequestSchema = new mongoose.Schema<IOAuthAuthRequest>(
       required: true,
     },
     nonce: { type: String },
+    prompt: { type: String },
+    maxAge: { type: Number },
     consumedAt: { type: Date, default: null },
     createdAt: { type: Date, required: true },
     expiresAt: { type: Date, required: true },

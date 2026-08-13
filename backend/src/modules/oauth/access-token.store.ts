@@ -17,6 +17,12 @@ interface CreateAccessTokenInput {
   userId: string;
   clientId: string;
   scope: string;
+  /** M4: `jti`, grant identity and `auth_time` from the signed token. */
+  jti?: string;
+  grantId?: string;
+  authTime?: Date;
+  /** Explicit expiry so the record and the token's own `exp` claim cannot drift apart. */
+  expiresAt?: Date;
 }
 
 // Internal: the predicate that defines "this token may authorize a request".
@@ -33,12 +39,17 @@ export const AccessTokenStore = {
     const tokenHash = hashToken(input.token);
     await OAuthAccessToken.create({
       tokenHash,
+      jti: input.jti,
       userId: new mongoose.Types.ObjectId(input.userId),
       clientId: input.clientId,
       scope: input.scope,
+      grantId: input.grantId,
+      authTime: input.authTime,
       revokedAt: null,
       createdAt: now,
-      expiresAt: new Date(now.getTime() + TTL_SECONDS.ACCESS_TOKEN * MILLISECONDS.SECOND),
+      expiresAt:
+        input.expiresAt ??
+        new Date(now.getTime() + TTL_SECONDS.ACCESS_TOKEN * MILLISECONDS.SECOND),
     });
     return { tokenHash, expiresIn: TTL_SECONDS.ACCESS_TOKEN };
   },
@@ -49,6 +60,17 @@ export const AccessTokenStore = {
    */
   async findLive(token: string): Promise<IOAuthAccessToken | null> {
     return OAuthAccessToken.findOne(_liveFilter({ tokenHash: hashToken(token) })).lean<IOAuthAccessToken>();
+  },
+
+  /**
+   * Resolve a token without the liveness predicates, for RFC 7662 introspection.
+   *
+   * Introspection has to distinguish "revoked" from "never existed" *internally* while
+   * answering both with the same `{ active: false }`, so it needs the row a live lookup
+   * would hide. Nothing that authorises a request may use this.
+   */
+  async findAny(token: string): Promise<IOAuthAccessToken | null> {
+    return OAuthAccessToken.findOne({ tokenHash: hashToken(token) }).lean<IOAuthAccessToken>();
   },
 
   /** Revoke one token by its stored hash — `tokenHash` is unique, so this is one document. */
@@ -68,6 +90,23 @@ export const AccessTokenStore = {
       _liveFilter({ userId: new mongoose.Types.ObjectId(userId), clientId }),
       { $set: { revokedAt: new Date(), revokedReason: reason } },
     );
+    return result.modifiedCount;
+  },
+
+  /**
+   * Revoke every live token minted under one authorization grant.
+   *
+   * This is the RFC 7009 §2.1 cascade: "if the particular token is a refresh token and
+   * the authorization server supports the revocation of access tokens, then the
+   * authorization server SHOULD also invalidate all access tokens based on the same
+   * authorization grant". Refresh tokens arrive with M3; `grantId` is the join column
+   * that will let them cascade without any further schema change, and today it already
+   * makes revoking one access token revoke everything else the same code minted.
+   */
+  async revokeByGrant(grantId: string, reason: RevokeReason): Promise<number> {
+    const result = await OAuthAccessToken.updateMany(_liveFilter({ grantId }), {
+      $set: { revokedAt: new Date(), revokedReason: reason },
+    });
     return result.modifiedCount;
   },
 };
