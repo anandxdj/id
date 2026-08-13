@@ -22,6 +22,20 @@ export const ROUTE_SEGMENTS = {
   SESSIONS: 'sessions',
 } as const;
 
+/**
+ * Frontend paths the emailed links point at. They live here rather than in the email
+ * templates so that "which page redeems a verification token" is one grep, and so the
+ * token travels in the URL *fragment* — never the query string, which the reference
+ * project got wrong (§2.3-14) and which leaks into referrer headers, browser history,
+ * and every proxy access log on the way.
+ */
+export const FRONTEND_PATHS = {
+  VERIFY_EMAIL: '/verify-email',
+  RESET_PASSWORD: '/reset-password',
+  LOGIN: '/login',
+  FORGOT_PASSWORD: '/forgot-password',
+} as const;
+
 // ── Roles ─────────────────────────────────────────────────────────────────────
 export const USER_ROLES = {
   USER: 'user',
@@ -151,6 +165,8 @@ export const COLLECTIONS = {
   OAUTH_AUTH_REQUEST: 'OAuthAuthRequest',
   OAUTH_AUTH_CODE: 'OAuthAuthCode',
   OAUTH_ACCESS_TOKEN: 'OAuthAccessToken',
+  AUTH_ACTION_TOKEN: 'AuthActionToken',
+  LOGIN_THROTTLE: 'LoginThrottle',
 } as const;
 
 /**
@@ -164,6 +180,8 @@ export const COLLECTION_NAMES = {
   OAUTH_AUTH_REQUEST: 'oauthAuthRequests',
   OAUTH_AUTH_CODE: 'oauthAuthCodes',
   OAUTH_ACCESS_TOKEN: 'oauthAccessTokens',
+  AUTH_ACTION_TOKEN: 'authActionTokens',
+  LOGIN_THROTTLE: 'loginThrottles',
 } as const;
 
 /**
@@ -225,6 +243,96 @@ export const AUTH_CODE_REPLAY_RETENTION_SECONDS = 10 * SECONDS.MINUTE;
 /** How stale `lastSeenAt` may get before we spend a write on it. */
 export const LAST_SEEN_THROTTLE_MS = 60 * MILLISECONDS.SECOND;
 
+// ── Auth action tokens (email verification, password reset) ───────────────────
+/**
+ * Type-discriminated action tokens, so a verification token can never be redeemed as a
+ * password reset. The type is part of the redemption filter, not an afterthought.
+ */
+export const ACTION_TOKEN_TYPES = {
+  EMAIL_VERIFICATION: 'email_verification',
+  PASSWORD_RESET: 'password_reset',
+} as const;
+
+export type ActionTokenType = (typeof ACTION_TOKEN_TYPES)[keyof typeof ACTION_TOKEN_TYPES];
+
+/** TTL per token type, keyed so the store never has to branch on the type itself. */
+export const ACTION_TOKEN_TTL_SECONDS: Record<ActionTokenType, number> = {
+  [ACTION_TOKEN_TYPES.EMAIL_VERIFICATION]: TTL_SECONDS.EMAIL_VERIFICATION,
+  [ACTION_TOKEN_TYPES.PASSWORD_RESET]: TTL_SECONDS.PASSWORD_RESET,
+};
+
+/**
+ * Why an outstanding action token was killed before it was used. Recorded so a support
+ * question ("my link stopped working") has an answer other than a shrug.
+ */
+export const ACTION_TOKEN_REVOKE_REASONS = {
+  /** A newer token of the same type was issued for the same user. */
+  SUPERSEDED: 'superseded',
+  /** A password reset completed, so every other outstanding token is stale. */
+  PASSWORD_RESET: 'password_reset',
+  ACCOUNT_DELETED: 'account_deleted',
+} as const;
+
+export type ActionTokenRevokeReason =
+  (typeof ACTION_TOKEN_REVOKE_REASONS)[keyof typeof ACTION_TOKEN_REVOKE_REASONS];
+
+/**
+ * Outcomes of a single-use action-token claim.
+ *
+ * `EXPIRED` gets its own client-facing code, because "this link expired, request a new
+ * one" is materially better copy and learning it requires already holding the token —
+ * there is no user-existence oracle in it. Every other failure collapses to
+ * `INVALID_ACTION_TOKEN`, so a replay of a genuine token is indistinguishable from a
+ * guess. They stay distinct internally because they are different events: `CONSUMED` is
+ * a replay, `SUPERSEDED` is an old link from an old inbox, `UNKNOWN` is noise.
+ */
+export const ACTION_TOKEN_OUTCOME = {
+  CLAIMED: 'claimed',
+  CONSUMED: 'consumed',
+  SUPERSEDED: 'superseded',
+  EXPIRED: 'expired',
+  UNKNOWN: 'unknown',
+} as const;
+
+export type ActionTokenOutcome =
+  (typeof ACTION_TOKEN_OUTCOME)[keyof typeof ACTION_TOKEN_OUTCOME];
+
+// ── Account deletion ─────────────────────────────────────────────────────────
+/**
+ * Soft deletion has to free the email address, or re-registration hits a duplicate-key
+ * error forever — the reference's §2.3-16 bug.
+ *
+ * The address is moved to `deletedEmail` and `email` is replaced with a tombstone, which
+ * frees the live `unique` index on `users.email` **without** rebuilding it. The
+ * alternative — a unique index made partial on `{ deletedAt: null }` — is prettier data
+ * but requires dropping and recreating a unique index on a live collection, and leans on
+ * the null-matching semantics of `partialFilterExpression`. Determinism wins here.
+ *
+ * `.invalid` is reserved by RFC 2606, so a tombstone can never collide with a real
+ * address, and the ObjectId makes it unique without a lookup.
+ */
+export const DELETED_ACCOUNT = {
+  EMAIL_PREFIX: 'deleted+',
+  EMAIL_DOMAIN: 'deleted.invalid',
+} as const;
+
+// ── Email delivery ───────────────────────────────────────────────────────────
+export const EMAIL_DELIVERY = {
+  /** Resend's transactional send endpoint. */
+  RESEND_ENDPOINT: 'https://api.resend.com/emails',
+  /**
+   * Delivery is fire-and-forget *after* the token is persisted, but it still needs a
+   * ceiling: an un-timed fetch against a hung provider holds a socket and a promise for
+   * as long as the provider feels like it.
+   */
+  TIMEOUT_MS: 10 * MILLISECONDS.SECOND,
+  /**
+   * How many suppressed messages the development outbox keeps. Bounded because it is an
+   * in-memory ring and an unbounded one is a memory leak with a friendly name.
+   */
+  DEV_OUTBOX_SIZE: 25,
+} as const;
+
 // ── Cookies ───────────────────────────────────────────────────────────────────
 export const COOKIE_NAMES = {
   ACCESS_TOKEN: 'accessToken',
@@ -261,7 +369,7 @@ export const LOGIN_THROTTLE = {
   MAX_ATTEMPTS: 5,
   LOCK_MS: 15 * MILLISECONDS.MINUTE,
   /**
-   * Sliding window. The reference implementation had no decay at all, so five
+   * Expiring window. The reference implementation had no decay at all, so five
    * failures bricked an account permanently — the lock is evaluated from
    * `lockedUntil` only, and the counter document self-expires after this window.
    */
@@ -270,8 +378,25 @@ export const LOGIN_THROTTLE = {
 
 // ── Crypto ────────────────────────────────────────────────────────────────────
 export const CRYPTO = {
-  /** Argon2id parameters (OWASP-current). */
+  /**
+   * Argon2id parameters (OWASP-current: 64 MiB, t=3, p=4). These are *defaults* —
+   * `Config.password.argon2` may override each one per deployment, because the right
+   * cost is a function of the host's memory and the login rate it must sustain, and
+   * raising it must never require a code change. `PasswordService.needsRehash` is what
+   * makes raising it actually upgrade stored hashes.
+   */
   ARGON2: { memoryCost: 65_536, timeCost: 3, parallelism: 4 },
+  /**
+   * `Algorithm.Argon2id` from `@node-rs/argon2`, as a number.
+   *
+   * The binding declares that enum as an *ambient const enum*, which cannot be referenced
+   * at all under `verbatimModuleSyntax` — so the value has to be restated. Restating a
+   * magic number for a security-critical parameter is only acceptable with a check, and
+   * there is one: `PasswordService.warmup()` asserts at boot that the hash it produces
+   * actually carries the `$argon2id$` prefix. If the binding ever renumbers, the process
+   * refuses to start rather than quietly hashing with Argon2i or Argon2d.
+   */
+  ARGON2_ALGORITHM_ID: 2,
   /** Verify-only fallback for hashes created before the Argon2 migration. */
   LEGACY_BCRYPT_ROUNDS: 12,
   TOKEN_BYTES: {
@@ -287,6 +412,60 @@ export const CRYPTO = {
   SIGNING_ALG: 'RS256',
 } as const;
 
+/**
+ * Bounds on the tunable Argon2 parameters, enforced by the env schema.
+ *
+ * A floor exists because the failure mode of a mistyped `ARGON2_MEMORY_KIB=64` is
+ * silent: every password still hashes and verifies, at roughly a thousandth of the
+ * intended cost. A ceiling exists because each concurrent hash reserves `memoryCost`
+ * KiB, so an over-large value turns a login burst into an OOM.
+ */
+export const ARGON2_LIMITS = {
+  MEMORY_KIB: { MIN: 19_456, MAX: 1_048_576 },
+  TIME_COST: { MIN: 2, MAX: 10 },
+  PARALLELISM: { MIN: 1, MAX: 16 },
+} as const;
+
+/**
+ * Password hash formats we can recognise. The stored hash is self-describing, so no
+ * `algorithm` column is needed on the user document — which also means there is no way
+ * for such a column to disagree with the hash it describes.
+ */
+export const PASSWORD_ALGORITHMS = {
+  ARGON2ID: 'argon2id',
+  BCRYPT: 'bcrypt',
+  UNKNOWN: 'unknown',
+} as const;
+
+export type PasswordAlgorithm = (typeof PASSWORD_ALGORITHMS)[keyof typeof PASSWORD_ALGORITHMS];
+
+/** PHC-string prefix for Argon2id, and the three bcrypt revisions in the wild. */
+export const PASSWORD_HASH_PREFIXES = {
+  ARGON2ID: '$argon2id$',
+  BCRYPT: ['$2a$', '$2b$', '$2y$'] as readonly string[],
+} as const;
+
+/**
+ * How long a `PasswordService.warmup()` hash may take before we complain at boot.
+ *
+ * Above this, every login pays the cost and a burst will queue on the libuv thread
+ * pool — which is a tuning problem the operator needs told about at start-up, not
+ * discovered from p99 latency graphs a week later.
+ */
+export const PASSWORD_HASH_SLOW_MS = 500;
+
+/**
+ * Floor for `UV_THREADPOOL_SIZE` once Argon2 is in play.
+ *
+ * `@node-rs/argon2`'s async API dispatches onto libuv's thread pool, which defaults to
+ * **four** threads and is shared with `dns.lookup`, `fs`, `zlib`, and `crypto.pbkdf2`.
+ * Measured on the reference machine: with the default pool, a `readFile` that takes
+ * 0 ms idle takes **182 ms** while eight hashes are in flight; at 16 threads it returns
+ * in 0 ms. Since Mongo and Redis reconnects need `dns.lookup`, an undersized pool means
+ * a login burst can delay the very reconnect that would end an outage.
+ */
+export const UV_THREADPOOL_MIN_FOR_ARGON2 = 8;
+
 // ── Field caps ────────────────────────────────────────────────────────────────
 export const FIELD_LIMITS = {
   USER_AGENT: 400,
@@ -295,6 +474,11 @@ export const FIELD_LIMITS = {
   NAME: 100,
   PASSWORD_MIN: 8,
   PASSWORD_MAX: 128,
+  DISABLED_REASON: 500,
+  BIO: 500,
+  JOB_TITLE: 100,
+  COUNTRY_CODE: 2,
+  EMAIL: 254,
 } as const;
 
 // ── Pagination ────────────────────────────────────────────────────────────────
@@ -318,3 +502,32 @@ export const HEADERS = {
 
 export const BEARER_PREFIX = 'Bearer ';
 export const BASIC_PREFIX = 'Basic ';
+
+// ── MongoDB server error codes ────────────────────────────────────────────────
+/**
+ * Only the ones we branch on. `DUPLICATE_KEY` is load-bearing in two places: the error
+ * handler maps it to a 409 instead of a 500, and registration treats it as "this address is
+ * already taken" so that losing a concurrent race answers identically to finding the account
+ * on the initial read.
+ */
+export const MONGO_ERROR_CODES = {
+  DUPLICATE_KEY: 11000,
+} as const;
+
+// ── HTTP status codes ─────────────────────────────────────────────────────────
+/**
+ * Named statuses, for the `ApiError.fromCode(status, code)` path.
+ *
+ * `ApiError`'s named constructors (`badRequest`, `forbidden`, …) hide the number, which is
+ * the right place for it — but `fromCode` exists precisely so a throw can name only its
+ * `ERROR_CODES` member and take the paired message for free, and it needs the status
+ * separately. Naming them here keeps that from being a bare literal at the call site.
+ */
+export const HTTP_STATUS = {
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  CONFLICT: 409,
+  TOO_MANY_REQUESTS: 429,
+} as const;

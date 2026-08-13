@@ -4,7 +4,7 @@ import { ZodError } from 'zod';
 import { ApiError } from '../utils/ApiError';
 import { Logger } from '../logger/index.logger';
 import { Config } from '../config/config';
-import { ERROR_CODES, ERROR_MESSAGES } from '../constants/index.constants';
+import { ERROR_CODES, ERROR_MESSAGES, MONGO_ERROR_CODES } from '../constants/index.constants';
 import type { ErrorCode } from '../constants/index.constants';
 
 interface NormalizedError {
@@ -14,7 +14,7 @@ interface NormalizedError {
   details?: Record<string, string[]>;
 }
 
-const MONGO_DUPLICATE_KEY = 11000;
+const MONGO_DUPLICATE_KEY = MONGO_ERROR_CODES.DUPLICATE_KEY;
 
 const isMongoServerError = (error: unknown): error is { code?: number; keyPattern?: Record<string, unknown> } =>
   typeof error === 'object' && error !== null && 'code' in error;

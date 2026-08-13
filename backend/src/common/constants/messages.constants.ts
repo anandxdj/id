@@ -122,6 +122,23 @@ export const SUCCESS_MESSAGES = {
   CONSENT_RECORDED: 'Consent recorded',
 } as const;
 
+/**
+ * Subject lines for transactional mail. Copy, so it lives beside the other copy rather
+ * than inside the template functions.
+ */
+export const EMAIL_SUBJECTS = {
+  VERIFY_EMAIL: 'Confirm your email address',
+  PASSWORD_RESET: 'Reset your password',
+  /**
+   * Sent to an address that is *already* registered when someone tries to register it
+   * again. Registration answers identically either way, so this mail is the only place
+   * the difference surfaces — and it surfaces to the mailbox owner, who is entitled to
+   * know, rather than to the caller, who is not.
+   */
+  ALREADY_REGISTERED: 'Someone tried to create an account with your email',
+  PASSWORD_CHANGED: 'Your password was changed',
+} as const;
+
 /** Reasons written to `revokedReason` on sessions and refresh tokens. */
 export const REVOKE_REASONS = {
   USER_LOGOUT: 'user_logout',

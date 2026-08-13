@@ -116,6 +116,22 @@ const build = () => {
       },
     },
 
+    password: {
+      /**
+       * Argon2id cost. Overridable per deployment precisely so that raising it is a
+       * config change plus a rolling restart, not a release — and
+       * `PasswordService.needsRehash` turns the raise into an actual upgrade of stored
+       * hashes on each user's next successful login.
+       */
+      argon2: {
+        memoryCost: env.ARGON2_MEMORY_KIB,
+        timeCost: env.ARGON2_TIME_COST,
+        parallelism: env.ARGON2_PARALLELISM,
+      },
+      /** `undefined` means libuv's default of 4. See UV_THREADPOOL_MIN_FOR_ARGON2. */
+      uvThreadpoolSize: env.UV_THREADPOOL_SIZE,
+    },
+
     email: {
       apiKey: env.RESEND_API_KEY,
       from: env.EMAIL_FROM,
@@ -168,6 +184,9 @@ export const Config = {
   },
   get connectors() {
     return load().connectors;
+  },
+  get password() {
+    return load().password;
   },
   get email() {
     return load().email;

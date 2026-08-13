@@ -62,6 +62,19 @@ const ttlTargets = (): TtlTarget[] => [
     field: 'expiresAt',
     expireAfterSeconds: TTL_EXPIRE_AT_DATE,
   },
+  {
+    model: COLLECTIONS.AUTH_ACTION_TOKEN,
+    field: 'expiresAt',
+    expireAfterSeconds: TTL_EXPIRE_AT_DATE,
+  },
+  // The login throttle's TTL field is its *window*, not an `expiresAt` — reaping the
+  // document is how the counter decays, which is what makes the throttle a window rather
+  // than the reference's permanent lockout.
+  {
+    model: COLLECTIONS.LOGIN_THROTTLE,
+    field: 'windowExpiresAt',
+    expireAfterSeconds: TTL_EXPIRE_AT_DATE,
+  },
 ];
 
 const reconcileTtl = async (target: TtlTarget): Promise<void> => {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ARGON2_LIMITS, CRYPTO } from '../constants/index.constants';
 
 /**
  * The ONE place `process.env` is read in this codebase (tests and seed scripts aside).
@@ -95,6 +96,37 @@ const envSchema = z
     GITHUB_CLIENT_ID: z.string().optional(),
     GITHUB_CLIENT_SECRET: z.string().optional(),
 
+    // ── Password hashing (Argon2id) ──────────────────────────────────────────
+    // Cost is a per-deployment tuning decision — a box that must sustain 50 logins/s
+    // cannot use the same memory cost as one serving 5 — so it is configuration, with
+    // the OWASP-current values as defaults. Bounded on both sides: a mistyped floor
+    // silently weakens every password, and an over-large value OOMs under a burst.
+    ARGON2_MEMORY_KIB: z.coerce
+      .number()
+      .int()
+      .min(ARGON2_LIMITS.MEMORY_KIB.MIN)
+      .max(ARGON2_LIMITS.MEMORY_KIB.MAX)
+      .default(CRYPTO.ARGON2.memoryCost),
+    ARGON2_TIME_COST: z.coerce
+      .number()
+      .int()
+      .min(ARGON2_LIMITS.TIME_COST.MIN)
+      .max(ARGON2_LIMITS.TIME_COST.MAX)
+      .default(CRYPTO.ARGON2.timeCost),
+    ARGON2_PARALLELISM: z.coerce
+      .number()
+      .int()
+      .min(ARGON2_LIMITS.PARALLELISM.MIN)
+      .max(ARGON2_LIMITS.PARALLELISM.MAX)
+      .default(CRYPTO.ARGON2.parallelism),
+    /**
+     * Read, never written: libuv fixes its pool size the first time the pool is used,
+     * long before this schema is parsed, so setting it from here would do nothing.
+     * It is surfaced so `PasswordService.warmup()` can tell the operator at boot that
+     * Argon2 is about to starve every other libuv consumer.
+     */
+    UV_THREADPOOL_SIZE: z.coerce.number().int().positive().max(1024).optional(),
+
     // ── Email (M2) ───────────────────────────────────────────────────────────
     RESEND_API_KEY: z.string().min(1).optional(),
     EMAIL_FROM: z.string().min(1).optional(),
@@ -187,6 +219,17 @@ const envSchema = z
           code: z.ZodIssueCode.custom,
           path: ['COOKIE_SECURE'],
           message: 'COOKIE_SECURE must be true in production — the refresh cookie carries a session credential',
+        });
+      }
+      // Email became load-bearing in M2: a password-reset link is the only account
+      // recovery path there is. Booting production without a provider ships a register
+      // page that mints accounts nobody can ever verify or recover.
+      if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['RESEND_API_KEY'],
+          message:
+            'Set RESEND_API_KEY and EMAIL_FROM in production — email verification and password reset have no fallback delivery path',
         });
       }
     }
