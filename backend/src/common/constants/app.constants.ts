@@ -62,11 +62,31 @@ export const CODE_CHALLENGE_METHODS = {
   S256: 'S256',
 } as const;
 
+/** Prefix on the opaque consent-transaction id, so it is recognisable in a log line. */
+export const OAUTH_TRANSACTION_ID_PREFIX = 'txn_';
+
 export const TOKEN_ENDPOINT_AUTH_METHODS = {
   CLIENT_SECRET_BASIC: 'client_secret_basic',
   CLIENT_SECRET_POST: 'client_secret_post',
   NONE: 'none',
 } as const;
+
+/**
+ * Outcomes of a single-use authorization-code claim.
+ *
+ * All four return the same `invalid_grant` to the client — telling them apart would be
+ * an oracle. They are kept apart internally because they mean different things to us:
+ * `REPLAYED` is an attack signal that must revoke the tokens the first redemption
+ * issued, while `UNKNOWN` is an ordinary client bug.
+ */
+export const CODE_REDEMPTION = {
+  CLAIMED: 'claimed',
+  REPLAYED: 'replayed',
+  EXPIRED: 'expired',
+  UNKNOWN: 'unknown',
+} as const;
+
+export type CodeRedemptionOutcome = (typeof CODE_REDEMPTION)[keyof typeof CODE_REDEMPTION];
 
 /** RFC 6749 §4.1.2.1 / §5.2 error codes. */
 export const OAUTH_ERRORS = {
@@ -83,28 +103,79 @@ export const OAUTH_ERRORS = {
   SERVER_ERROR: 'server_error',
 } as const;
 
-// ── Datastore key prefixes ────────────────────────────────────────────────────
+// ── Redis: cache and counters only ────────────────────────────────────────────
 /**
- * Redis keyspaces. These disappear in M1 as each becomes a TTL-indexed Mongo
- * collection; they are centralised here so the migration is a mechanical
- * find-and-replace against one file instead of 20 inline string literals.
+ * Redis holds nothing whose loss would be a correctness or safety failure (D1).
+ * Every authoritative keyspace it used to own — sessions, authorization codes,
+ * pending authorization requests, OIDC access tokens, social-login state — is now a
+ * TTL-indexed Mongo collection. What is left is shared counters: worthless once
+ * their window closes, high churn, and needed atomically across replicas.
+ *
+ * `FLUSHALL` on this instance must cost latency and rate-limit accuracy, nothing else.
+ *
+ * Keys are namespaced because the instance may be shared with other applications —
+ * an un-prefixed `rl:1.2.3.4` is a collision waiting to become an outage.
  */
+const REDIS_NAMESPACE = 'id:';
+
 export const REDIS_KEYS = {
-  SESSION: 'session',
-  ACCESS_TOKEN: 'access_token',
-  USER_CLIENT_TOKENS: 'user_client_tokens',
-  AUTH_REQUEST: 'auth_req',
-  AUTH_CODE: 'auth_code',
-  OAUTH_STATE: 'oauth_state',
+  NAMESPACE: REDIS_NAMESPACE,
+  /** `express-rate-limit` counters. */
+  RATE_LIMIT: `${REDIS_NAMESPACE}rl:`,
 } as const;
 
+/**
+ * Client tuning for a cache tier. A cache must never hold the request path open:
+ * a command that cannot complete inside the timeout is abandoned and the caller
+ * degrades (see `rateLimit.ts`), rather than making a Redis stall an auth outage.
+ */
+export const REDIS_CACHE = {
+  COMMAND_TIMEOUT_MS: 250,
+  MAX_RETRIES_PER_REQUEST: 1,
+  CONNECT_TIMEOUT_MS: 2_000,
+  /** Capped exponential reconnect backoff; retries forever so a blip self-heals. */
+  RECONNECT_BASE_MS: 100,
+  RECONNECT_MAX_MS: 3_000,
+} as const;
+
+// ── Mongoose model + collection names ─────────────────────────────────────────
+/** Registered Mongoose model names (what `ref:` and `mongoose.models` key on). */
 export const COLLECTIONS = {
   USER: 'User',
   IDENTITY: 'Identity',
-  CONSENT: 'Consent',
+  CONSENT: 'OAuthConsent',
   OAUTH_CLIENT: 'OAuthClient',
   AUTH_EVENT: 'AuthEvent',
+  SESSION: 'Session',
+  OAUTH_STATE: 'OAuthState',
+  OAUTH_AUTH_REQUEST: 'OAuthAuthRequest',
+  OAUTH_AUTH_CODE: 'OAuthAuthCode',
+  OAUTH_ACCESS_TOKEN: 'OAuthAccessToken',
 } as const;
+
+/**
+ * Physical collection names, pinned explicitly rather than left to Mongoose's
+ * pluraliser — which would turn `OAuthAuthCode` into `oauthauthcodes` and make the
+ * collection names in the design doc not match the ones in the database.
+ */
+export const COLLECTION_NAMES = {
+  SESSION: 'sessions',
+  OAUTH_STATE: 'oauthStates',
+  OAUTH_AUTH_REQUEST: 'oauthAuthRequests',
+  OAUTH_AUTH_CODE: 'oauthAuthCodes',
+  OAUTH_ACCESS_TOKEN: 'oauthAccessTokens',
+} as const;
+
+/**
+ * `expireAfterSeconds` for a TTL index on an absolute `expiresAt` date: expire the
+ * document the moment that date passes, rather than N seconds after it.
+ *
+ * TTL is storage reclamation, NOT authorization. Mongo's reaper runs on a ~60 s cycle
+ * and never runs on a secondary, so an expired document stays readable for up to a
+ * minute after it dies. Every read against these collections must therefore carry an
+ * explicit `expiresAt: { $gt: new Date() }` predicate of its own.
+ */
+export const TTL_EXPIRE_AT_DATE = 0;
 
 // ── Time ──────────────────────────────────────────────────────────────────────
 export const SECONDS = {
@@ -121,7 +192,7 @@ export const MILLISECONDS = {
 } as const;
 
 export const TTL_SECONDS = {
-  /** OIDC access token (opaque, Redis/Mongo-backed). */
+  /** OIDC access token (opaque, Mongo-backed). */
   ACCESS_TOKEN: 15 * SECONDS.MINUTE,
   /** Pending consent transaction. */
   AUTH_REQUEST: 15 * SECONDS.MINUTE,
@@ -140,6 +211,17 @@ export const TTL_SECONDS = {
 /** Default TTL baked into the AuthEvent index; the configured value is applied via collMod at boot. */
 export const DEFAULT_EVENT_RETENTION_SECONDS = 90 * SECONDS.DAY;
 
+/**
+ * How long a spent authorization code is *kept* past the moment it stops being *valid*.
+ *
+ * Validity and retention are different things. Validity is the `expiresAt` predicate
+ * every query carries; retention is how long the row survives so that a replay is still
+ * distinguishable from a code that never existed. Reaping the document the instant it
+ * expires would silently downgrade the attack signal to a plain 400 for anyone who
+ * replays a stolen code a few minutes late.
+ */
+export const AUTH_CODE_REPLAY_RETENTION_SECONDS = 10 * SECONDS.MINUTE;
+
 /** How stale `lastSeenAt` may get before we spend a write on it. */
 export const LAST_SEEN_THROTTLE_MS = 60 * MILLISECONDS.SECOND;
 
@@ -152,6 +234,17 @@ export const COOKIE_NAMES = {
 export const COOKIE_SAME_SITE = 'lax' as const;
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
+/**
+ * One key namespace per limiter tier, so the tiers count independently instead of
+ * sharing a bucket. Appended to `REDIS_KEYS.RATE_LIMIT`.
+ */
+export const RATE_LIMIT_SCOPES = {
+  API: 'api',
+  AUTH: 'auth',
+  TOKEN: 'token',
+  SENSITIVE: 'sensitive',
+} as const;
+
 export const RATE_LIMITS = {
   /** Loose backstop across the whole API. */
   API: { windowMs: 15 * MILLISECONDS.MINUTE, max: 1_000 },
@@ -182,11 +275,13 @@ export const CRYPTO = {
   /** Verify-only fallback for hashes created before the Argon2 migration. */
   LEGACY_BCRYPT_ROUNDS: 12,
   TOKEN_BYTES: {
+    SESSION_ID: 24,
     AUTH_CODE: 32,
     ACCESS_TOKEN: 32,
     REFRESH_TOKEN: 64,
     ACTION_TOKEN: 32,
-    STATE: 16,
+    /** Social-login CSRF state. */
+    STATE: 24,
     TRANSACTION_ID: 24,
   },
   SIGNING_ALG: 'RS256',

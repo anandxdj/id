@@ -60,7 +60,8 @@ const envSchema = z
     // ── Datastores ───────────────────────────────────────────────────────────
     MONGO_URI: z.string().min(1).default(DEV_DEFAULTS.MONGO_URI),
     MONGO_DB_NAME: z.string().min(1).optional(),
-    // Removed in M1 once every keyspace has moved to a TTL collection.
+    // Cache and counters only — see `common/config/redis.ts`. Nothing authoritative
+    // lives here, so an unreachable Redis degrades rate-limit accuracy and nothing else.
     REDIS_URL: z.string().min(1).default('redis://127.0.0.1:6379'),
 
     // ── Retention ────────────────────────────────────────────────────────────

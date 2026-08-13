@@ -127,6 +127,8 @@ export const REVOKE_REASONS = {
   USER_LOGOUT: 'user_logout',
   USER_LOGOUT_ALL: 'user_logout_all',
   USER_REVOKED_SESSION: 'user_revoked_session',
+  /** The user withdrew an OAuth client's access from the authorized-apps screen. */
+  USER_REVOKED_APP: 'user_revoked_app',
   TOKEN_EXPIRED: 'token_expired',
   TOKEN_REUSE_DETECTED: 'token_reuse_detected',
   PASSWORD_RESET: 'password_reset',
