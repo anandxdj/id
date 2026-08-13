@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import type { Server } from 'node:http';
 import { pkceChallengeS256, randomBase64Url } from '../../common/utils/crypto.utils';
+import { IntegrationGate } from '../../common/testing/index.testing';
 
 process.env.OIDC_ISSUER ??= 'http://localhost:4000';
 process.env.JWT_ACCESS_SECRET ??= 'test-access-secret';
@@ -72,7 +73,7 @@ before(async () => {
     const body = (await login.json()) as { data: { accessToken: string } };
     accessCookie = `accessToken=${body.data.accessToken}`;
     available = true;
-  } catch {
+  } catch (cause) {
     available = false;
     try {
       const mongoose = (await import('mongoose')).default;
@@ -82,7 +83,7 @@ before(async () => {
       const { redis } = await import('../../common/config/redis');
       redis.disconnect();
     } catch { /* ignore */ }
-    console.log('[oauth.flow] Mongo/Redis unavailable — skipping integration tests');
+    IntegrationGate.reportUnavailable('oauth.flow', cause);
   }
 });
 

@@ -6,6 +6,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
 import { redis } from '../../common/config/redis';
+import { IntegrationGate } from '../../common/testing/index.testing';
 import * as authService from './auth.service';
 import type { IUser } from './auth.model';
 
@@ -36,8 +37,9 @@ before(async () => {
     );
     await withTimeout(redis.ping(), 2000);
     available = true;
-  } catch {
+  } catch (error) {
     available = false;
+    IntegrationGate.reportUnavailable('session', error);
   }
 });
 

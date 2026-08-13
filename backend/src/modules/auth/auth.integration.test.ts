@@ -6,6 +6,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Server } from 'node:http';
+import { IntegrationGate } from '../../common/testing/index.testing';
 
 process.env.JWT_ACCESS_SECRET ??= 'test-access-secret';
 process.env.JWT_REFRESH_SECRET ??= 'test-refresh-secret';
@@ -54,7 +55,7 @@ before(async () => {
       });
     });
     available = true;
-  } catch {
+  } catch (cause) {
     available = false;
     // Release any half-open handles so node:test can exit cleanly.
     try {
@@ -69,7 +70,7 @@ before(async () => {
     } catch {
       /* ignore */
     }
-    console.log('[auth.integration] Mongo/Redis unavailable — skipping integration tests');
+    IntegrationGate.reportUnavailable('auth.integration', cause);
   }
 });
 

@@ -5,6 +5,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Server } from 'node:http';
+import { IntegrationGate } from '../../common/testing/index.testing';
 
 process.env.OIDC_ISSUER ??= 'http://localhost:4000';
 process.env.JWT_ACCESS_SECRET ??= 'test-access-secret';
@@ -73,8 +74,9 @@ before(async () => {
     adminToken = await loginToken(ADMIN);
     userToken = await loginToken(USER);
     available = true;
-  } catch {
+  } catch (cause) {
     available = false;
+    IntegrationGate.reportUnavailable('admin.integration', cause);
   }
 });
 
