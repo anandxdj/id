@@ -1,5 +1,9 @@
 import bcrypt from 'bcryptjs';
 import { randomBase64Url } from '../../common/utils/crypto.utils';
+import {
+  CRYPTO,
+  TOKEN_ENDPOINT_AUTH_METHODS,
+} from '../../common/constants/index.constants';
 import OAuthClient from './oauth-client.model';
 import type { IOAuthClient } from './oauth-client.model';
 
@@ -8,7 +12,16 @@ const makeClientId = (): string =>
 
 const makeClientSecret = (): string => randomBase64Url(48);
 
-export interface CreateClientInput {
+/** M4: protocol metadata accepted at registration. Omitted fields take model defaults. */
+export interface ClientProtocolMetadata {
+  scopes?: string[];
+  grantTypes?: string[];
+  responseTypes?: string[];
+  tokenEndpointAuthMethod?: string;
+  postLogoutRedirectUris?: string[];
+}
+
+export interface CreateClientInput extends ClientProtocolMetadata {
   clientName: string;
   redirectUris: string[];
   description?: string;
@@ -17,27 +30,62 @@ export interface CreateClientInput {
 
 export interface CreatedClient {
   clientId: string;
-  clientSecret: string; // returned once, never stored in plaintext
+  /** Returned once, never stored in plaintext. Absent entirely for a public client. */
+  clientSecret?: string;
   clientName: string;
   redirectUris: string[];
+  tokenEndpointAuthMethod: string;
 }
 
-/** Register an internal app. Returns the plaintext secret exactly once. */
+/** True when the client authenticates with `none` — i.e. an SPA or native app. */
+const isPublicMethod = (method?: string): boolean =>
+  method === TOKEN_ENDPOINT_AUTH_METHODS.NONE;
+
+// Internal: only set the keys the caller actually supplied, so an update never
+// clobbers a stored policy with a model default.
+const _metadataUpdate = (input: ClientProtocolMetadata): Record<string, unknown> => {
+  const set: Record<string, unknown> = {};
+  if (input.scopes !== undefined) set.scopes = input.scopes;
+  if (input.grantTypes !== undefined) set.grantTypes = input.grantTypes;
+  if (input.responseTypes !== undefined) set.responseTypes = input.responseTypes;
+  if (input.tokenEndpointAuthMethod !== undefined) {
+    set.tokenEndpointAuthMethod = input.tokenEndpointAuthMethod;
+  }
+  if (input.postLogoutRedirectUris !== undefined) {
+    set.postLogoutRedirectUris = input.postLogoutRedirectUris;
+  }
+  return set;
+};
+
+/**
+ * Register an app. Returns the plaintext secret exactly once — and not at all for a
+ * public client, which must have no secret rather than an unused one.
+ */
 export const create = async (input: CreateClientInput): Promise<CreatedClient> => {
   const clientId = makeClientId();
-  const rawSecret = makeClientSecret();
-  const clientSecretHash = await bcrypt.hash(rawSecret, 12);
+  const publicClient = isPublicMethod(input.tokenEndpointAuthMethod);
+  const rawSecret = publicClient ? undefined : makeClientSecret();
+  const clientSecretHash = rawSecret
+    ? await bcrypt.hash(rawSecret, CRYPTO.LEGACY_BCRYPT_ROUNDS)
+    : undefined;
 
-  await OAuthClient.create({
+  const created = await OAuthClient.create({
     clientId,
     clientSecretHash,
     clientName: input.clientName.trim(),
     redirectUris: input.redirectUris,
     description: String(input.description ?? '').trim().slice(0, 2000),
     logoUrl: String(input.logoUrl ?? '').trim().slice(0, 2048),
+    ..._metadataUpdate(input),
   });
 
-  return { clientId, clientSecret: rawSecret, clientName: input.clientName.trim(), redirectUris: input.redirectUris };
+  return {
+    clientId,
+    clientSecret: rawSecret,
+    clientName: input.clientName.trim(),
+    redirectUris: input.redirectUris,
+    tokenEndpointAuthMethod: created.tokenEndpointAuthMethod,
+  };
 };
 
 /** Lookup by clientId. Secret hash is excluded unless `withSecret` is set. */
@@ -62,7 +110,7 @@ export const verifyClientSecret = async (
 export const list = async (): Promise<IOAuthClient[]> =>
   OAuthClient.find().sort({ createdAt: -1 }).lean<IOAuthClient[]>();
 
-export interface UpdateClientInput {
+export interface UpdateClientInput extends ClientProtocolMetadata {
   clientName?: string;
   redirectUris?: string[];
   description?: string;
@@ -74,7 +122,7 @@ export const update = async (
   clientId: string,
   input: UpdateClientInput,
 ): Promise<IOAuthClient | null> => {
-  const set: Record<string, unknown> = {};
+  const set: Record<string, unknown> = _metadataUpdate(input);
   if (input.clientName !== undefined) set.clientName = input.clientName.trim();
   if (input.redirectUris !== undefined) set.redirectUris = input.redirectUris;
   if (input.description !== undefined) set.description = String(input.description).trim().slice(0, 2000);
@@ -82,12 +130,22 @@ export const update = async (
   return OAuthClient.findOneAndUpdate({ clientId }, { $set: set }, { new: true, runValidators: true }).lean<IOAuthClient>();
 };
 
-/** Issue a fresh secret for a client, invalidating the old one. Returns it once. */
+/**
+ * Issue a fresh secret for a client, invalidating the old one. Returns it once.
+ *
+ * Refuses on a public client: minting a secret for a client registered as `none` would
+ * create a credential the token endpoint is contractually obliged to reject, which is
+ * worse than no credential at all.
+ */
 export const rotateSecret = async (
   clientId: string,
 ): Promise<{ clientSecret: string } | null> => {
+  const existing = await OAuthClient.findOne({ clientId }).lean<IOAuthClient>();
+  if (!existing) return null;
+  if (isPublicMethod(existing.tokenEndpointAuthMethod)) return null;
+
   const rawSecret = makeClientSecret();
-  const clientSecretHash = await bcrypt.hash(rawSecret, 12);
+  const clientSecretHash = await bcrypt.hash(rawSecret, CRYPTO.LEGACY_BCRYPT_ROUNDS);
   const updated = await OAuthClient.findOneAndUpdate({ clientId }, { $set: { clientSecretHash } });
   if (!updated) return null;
   return { clientSecret: rawSecret };
@@ -111,7 +169,7 @@ export const upsertSeedClient = async (
   input: CreateClientInput,
 ): Promise<{ clientId: string; clientSecret: string; created: boolean }> => {
   const rawSecret = makeClientSecret();
-  const clientSecretHash = await bcrypt.hash(rawSecret, 12);
+  const clientSecretHash = await bcrypt.hash(rawSecret, CRYPTO.LEGACY_BCRYPT_ROUNDS);
   const existing = await OAuthClient.findOne({ clientId });
 
   await OAuthClient.findOneAndUpdate(
@@ -123,8 +181,9 @@ export const upsertSeedClient = async (
       redirectUris: input.redirectUris,
       description: String(input.description ?? '').trim().slice(0, 2000),
       logoUrl: String(input.logoUrl ?? '').trim().slice(0, 2048),
+      ..._metadataUpdate(input),
     },
-    { upsert: true, new: true },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
   );
 
   return { clientId, clientSecret: rawSecret, created: !existing };
