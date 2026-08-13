@@ -14,6 +14,12 @@ export const EVENT_TYPES = [
   'userinfo.access',
   'consent.granted',
   'consent.revoked',
+  /**
+   * A genuine authorization code was presented twice. The pre-image kept by the
+   * single-use CAS is what makes this distinguishable from an unknown code, and it is
+   * the signal that revokes what the first redemption issued (RFC 6749 §4.1.2).
+   */
+  'oauth.code.replayed',
   // admin mutations (audited)
   'admin.user.suspended',
   'admin.user.unsuspended',

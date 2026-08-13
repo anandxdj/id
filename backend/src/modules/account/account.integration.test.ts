@@ -1,5 +1,10 @@
 /**
  * User self-service API (/api/me). Drives apps/sessions/profile over HTTP.
+ *
+ * Since M1 the access tokens and sessions this exercises live in Mongo, so the seeding
+ * and the assertions go there. Redis is still probed because it backs the shared
+ * rate-limit counters every one of these requests passes through.
+ *
  * Requires Mongo + Redis; self-skips when unavailable.
  */
 import { test, before, after } from 'node:test';
@@ -36,7 +41,7 @@ const jsonOf = async <T>(res: Response): Promise<T> => (await res.json()) as T;
 before(async () => {
   try {
     const mongoose = (await import('mongoose')).default;
-    const { redis } = await import('../../common/config/redis');
+    const { getRedis } = await import('../../common/config/redis');
     await withTimeout(
       mongoose.connect(process.env.MONGO_URI ?? 'mongodb://127.0.0.1:27017', {
         dbName: process.env.MONGO_DB_NAME,
@@ -44,7 +49,7 @@ before(async () => {
       }),
       2000,
     );
-    await withTimeout(redis.ping(), 2000);
+    await withTimeout(getRedis().ping(), 2000);
 
     const { User } = await import('../auth/auth.model');
     await User.deleteMany({ email: EMAIL });
@@ -84,15 +89,17 @@ after(async () => {
   server?.close();
   if (available) {
     const mongoose = (await import('mongoose')).default;
-    const { redis } = await import('../../common/config/redis');
+    const { disconnectRedis } = await import('../../common/config/redis');
     const { User } = await import('../auth/auth.model');
     const Consent = (await import('../oauth/consent.model')).default;
+    const { Session } = await import('../auth/session.model');
+    const { OAuthAccessToken } = await import('../oauth/oauth-access-token.model');
     await User.deleteMany({ email: EMAIL });
     await Consent.deleteMany({ clientId: CLIENT_ID });
-    const keys = await redis.keys(`*${userId}*`);
-    if (keys.length) await redis.del(...keys);
+    await Session.deleteMany({ userId });
+    await OAuthAccessToken.deleteMany({ userId });
     await mongoose.disconnect();
-    redis.disconnect();
+    await disconnectRedis();
   }
 });
 
@@ -104,20 +111,19 @@ test('/api/me/* requires authentication', async (t) => {
 
 test('apps: lists a consent then revokes it, killing the access token', async (t) => {
   if (!available) return t.skip('Mongo/Redis not reachable');
-  const { redis } = await import('../../common/config/redis');
   const Consent = (await import('../oauth/consent.model')).default;
-  const { hashToken } = await import('../../common/utils/crypto.utils');
+  const { AccessTokenStore } = await import('../oauth/access-token.store');
+  const { OAuthAccessToken } = await import('../oauth/oauth-access-token.model');
 
-  // Seed a consent + a live access token indexed under (user, client).
+  // Seed a consent + a live access token. No index set to seed alongside it: the
+  // `{ userId, clientId }` index is what the Redis set used to stand in for.
   await Consent.create({ userId, clientId: CLIENT_ID, scope: 'openid email' });
-  const tokenHash = hashToken('fake-access-token');
-  await redis.set(
-    `access_token:${tokenHash}`,
-    JSON.stringify({ tokenHash, userId, clientId: CLIENT_ID, scope: 'openid email' }),
-    'EX',
-    900,
-  );
-  await redis.sadd(`user_client_tokens:${userId}:${CLIENT_ID}`, tokenHash);
+  const { tokenHash } = await AccessTokenStore.create({
+    token: 'fake-access-token',
+    userId,
+    clientId: CLIENT_ID,
+    scope: 'openid email',
+  });
 
   const listed = await jsonOf<{ data: Array<{ clientId: string }> }>(await api('/api/me/apps'));
   assert.ok(listed.data.some((a) => a.clientId === CLIENT_ID), 'app is listed');
@@ -126,8 +132,42 @@ test('apps: lists a consent then revokes it, killing the access token', async (t
   const revokeBody = await jsonOf<{ data: { revokedTokens: number } }>(revoke);
   assert.equal(revoke.status, 200);
   assert.ok(revokeBody.data.revokedTokens >= 1, 'at least one token revoked');
-  assert.equal(await redis.get(`access_token:${tokenHash}`), null, 'access token gone');
+
+  // Revoked, not deleted — the row survives as evidence with a reason recorded.
+  const stored = (await OAuthAccessToken.findOne({ tokenHash }).lean())!;
+  assert.ok(stored.revokedAt instanceof Date, 'access token is revoked');
+  assert.ok(stored.revokedReason);
+  assert.equal(await AccessTokenStore.findLive('fake-access-token'), null, 'and no longer resolves');
   assert.equal(await Consent.findOne({ userId, clientId: CLIENT_ID }), null, 'consent gone');
+});
+
+test('apps: an expired access token is refused before the TTL reaper removes it', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+  const { AccessTokenStore } = await import('../oauth/access-token.store');
+  const { OAuthAccessToken } = await import('../oauth/oauth-access-token.model');
+
+  const { tokenHash } = await AccessTokenStore.create({
+    token: 'stale-access-token',
+    userId,
+    clientId: CLIENT_ID,
+    scope: 'openid',
+  });
+  await OAuthAccessToken.updateOne(
+    { tokenHash },
+    { $set: { expiresAt: new Date(Date.now() - 60_000) } },
+  );
+
+  assert.ok(await OAuthAccessToken.findOne({ tokenHash }).lean(), 'document is still present');
+  assert.equal(
+    await AccessTokenStore.findLive('stale-access-token'),
+    null,
+    'the read path enforces expiry itself rather than trusting the TTL index',
+  );
+
+  const userinfo = await fetch(`${base}/oauth/userinfo`, {
+    headers: { authorization: 'Bearer stale-access-token' },
+  });
+  assert.equal(userinfo.status, 401);
 });
 
 test('apps: revoking an app the user never authorized is 404', async (t) => {
@@ -139,19 +179,24 @@ test('apps: revoking an app the user never authorized is 404', async (t) => {
 test('sessions: lists the current session and can revoke another', async (t) => {
   if (!available) return t.skip('Mongo/Redis not reachable');
   const authService = await import('../auth/auth.service');
+  const { SessionStore } = await import('../auth/session.store');
   const { User } = await import('../auth/auth.model');
   const user = (await User.findById(userId))!;
   const other = await authService.createSession(user, { ua: 'second-device' });
   const otherSid = JSON.parse(Buffer.from(other.refreshToken.split('.')[1]!, 'base64url').toString()).sid;
+  // The API addresses sessions by handle, because the raw sid is a credential and is
+  // never persisted or published.
+  const otherHandle = SessionStore.handleOf(otherSid);
 
   const list = (await jsonOf<{ data: Array<{ sid: string; current: boolean }> }>(await api('/api/me/sessions'))).data;
   assert.ok(list.length >= 2);
   assert.equal(list.some((s) => s.current), true, 'one session is flagged current');
+  assert.equal(list.some((s) => s.sid === otherHandle), true, 'the second device is listed');
 
-  const del = await api(`/api/me/sessions/${otherSid}`, { method: 'DELETE' });
+  const del = await api(`/api/me/sessions/${otherHandle}`, { method: 'DELETE' });
   assert.equal(del.status, 200);
   const after = (await jsonOf<{ data: Array<{ sid: string }> }>(await api('/api/me/sessions'))).data;
-  assert.equal(after.some((s) => s.sid === otherSid), false, 'revoked session is gone');
+  assert.equal(after.some((s) => s.sid === otherHandle), false, 'revoked session is gone');
 });
 
 test('profile: updates allowed fields and ignores role escalation', async (t) => {

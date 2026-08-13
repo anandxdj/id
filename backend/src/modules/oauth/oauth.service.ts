@@ -1,15 +1,29 @@
 import type { Request, Response } from 'express';
 import { ApiError } from '../../common/utils/ApiError';
-import { redis } from '../../common/config/redis';
 import { Config } from '../../common/config/config';
 import { getOidcIssuer, signIdToken } from '../../common/utils/keys.utils';
-import { hashToken, randomBase64Url, verifyPkce } from '../../common/utils/crypto.utils';
+import { randomBase64Url, verifyPkce } from '../../common/utils/crypto.utils';
+import {
+  CODE_CHALLENGE_METHODS,
+  CODE_REDEMPTION,
+  CRYPTO,
+  GRANT_TYPES,
+  OAUTH_ERRORS,
+  OAUTH_TRANSACTION_ID_PREFIX,
+  REVOKE_REASONS,
+  TTL_SECONDS,
+} from '../../common/constants/index.constants';
+import { Logger } from '../../common/logger/index.logger';
 import * as clientService from '../oauth-client/oauth-client.service';
 import * as events from '../events/event.service';
 import User from '../auth/auth.model';
 import Consent from './consent.model';
+import { AuthRequestStore } from './auth-request.store';
+import { AuthCodeStore } from './auth-code.store';
+import { AccessTokenStore } from './access-token.store';
+import type { IOAuthAuthCode } from './oauth-auth-code.model';
 
-const ACCESS_TOKEN_SECONDS = 900;
+const ACCESS_TOKEN_SECONDS = TTL_SECONDS.ACCESS_TOKEN;
 
 const loginBase = () => Config.web.loginRedirectBase;
 
@@ -18,38 +32,15 @@ const consentBase = () => Config.web.consentRedirectBase;
 const hasScope = (scopeStr: string, needle: string): boolean =>
   (scopeStr || '').split(/\s+/).filter(Boolean).includes(needle);
 
-// ── Authorize params + Redis payload shapes ─────────────────────────────────
+// ── Authorize params ────────────────────────────────────────────────────────
 interface AuthorizeParams {
   clientId: string;
   redirectUri: string;
   scope: string;
   state: string;
   codeChallenge: string;
-  codeChallengeMethod: 'S256';
+  codeChallengeMethod: typeof CODE_CHALLENGE_METHODS.S256;
   nonce?: string;
-}
-
-interface AuthReqData extends AuthorizeParams {
-  transactionId: string;
-  userId: string;
-}
-
-interface AuthCodeData {
-  codeHash: string;
-  userId: string;
-  clientId: string;
-  redirectUri: string;
-  codeChallenge: string;
-  codeChallengeMethod: string;
-  scope: string;
-  nonce?: string;
-}
-
-interface AccessTokenData {
-  tokenHash: string;
-  userId: string;
-  clientId: string;
-  scope: string;
 }
 
 const validateAuthorizeQuery = (q: Request['query']): AuthorizeParams => {
@@ -134,9 +125,11 @@ export const getAuthorize = async (req: Request): Promise<AuthorizeOutcome> => {
 
   const existing = await Consent.findOne({ userId: req.user.id, clientId: params.clientId });
   if (!existing) {
-    const transactionId = `txn_${randomBase64Url(24).replace(/[^a-zA-Z0-9_-]/g, '')}`;
-    const reqData: AuthReqData = { transactionId, userId: req.user.id, ...params };
-    await redis.set(`auth_req:${transactionId}:${req.user.id}`, JSON.stringify(reqData), 'EX', 15 * 60);
+    const transactionId = `${OAUTH_TRANSACTION_ID_PREFIX}${randomBase64Url(
+      CRYPTO.TOKEN_BYTES.TRANSACTION_ID,
+    ).replace(/[^a-zA-Z0-9_-]/g, '')}`;
+    // Calls out to the auth-request store (TTL-indexed Mongo, scoped by user).
+    await AuthRequestStore.create({ transactionId, userId: req.user.id, ...params });
     return { type: 'consent_redirect', transactionId };
   }
 
@@ -144,10 +137,10 @@ export const getAuthorize = async (req: Request): Promise<AuthorizeOutcome> => {
 };
 
 const issueAuthCode = async (userId: string, params: AuthorizeParams): Promise<string> => {
-  const raw = randomBase64Url(32);
-  const codeHash = hashToken(raw);
-  const codeData: AuthCodeData = {
-    codeHash,
+  const code = randomBase64Url(CRYPTO.TOKEN_BYTES.AUTH_CODE);
+  // Only the hash is persisted; the raw code exists solely in the redirect we emit.
+  await AuthCodeStore.create({
+    code,
     userId,
     clientId: params.clientId,
     redirectUri: params.redirectUri,
@@ -155,9 +148,8 @@ const issueAuthCode = async (userId: string, params: AuthorizeParams): Promise<s
     codeChallengeMethod: params.codeChallengeMethod,
     scope: params.scope,
     nonce: params.nonce,
-  };
-  await redis.set(`auth_code:${codeHash}`, JSON.stringify(codeData), 'EX', 5 * 60);
-  return raw;
+  });
+  return code;
 };
 
 export const runAuthorize = async (req: Request, res: Response): Promise<void> => {
@@ -194,9 +186,51 @@ const parseBasicOrBody = (req: Request): { clientId?: string; clientSecret?: str
   return { clientId, clientSecret };
 };
 
+/** Every failed redemption returns the same RFC 6749 error — the reason is ours, not the client's. */
+const invalidGrant = (res: Response, description: string): void => {
+  res.status(400).json({ error: OAUTH_ERRORS.INVALID_GRANT, error_description: description });
+};
+
+/**
+ * Internal: the security response to a replayed authorization code.
+ *
+ * RFC 6749 §4.1.2 says an authorization server SHOULD revoke everything issued from a
+ * code that is presented twice. This is the reason redemption keeps the pre-image
+ * instead of deleting the row — a `findOneAndDelete` would render this branch
+ * indistinguishable from a client sending garbage, and the attack signal would be lost.
+ * When refresh-token families land (M3) this is where family revocation hooks in.
+ */
+const _handleReplayedCode = async (req: Request, code: IOAuthAuthCode): Promise<void> => {
+  const revokedCount = code.issuedAccessTokenHash
+    ? await AccessTokenStore.revokeByHash(
+        code.issuedAccessTokenHash,
+        REVOKE_REASONS.TOKEN_REUSE_DETECTED,
+      )
+    : 0;
+
+  // `revokedCount`, not `revokedTokens`: the logger redacts by key pattern, and anything
+  // matching `token` comes out as `[redacted]` — which would hide the number we care about.
+  Logger.warn('Authorization code replayed — revoking what it issued', {
+    clientId: code.clientId,
+    userId: code.userId.toString(),
+    firstRedeemedAt: code.consumedAt,
+    revokedCount,
+  });
+
+  events.record('oauth.code.replayed', {
+    actorUserId: code.userId.toString(),
+    clientId: code.clientId,
+    ...events.reqContext(req),
+    meta: { revokedCount, firstRedeemedAt: code.consumedAt },
+  });
+};
+
 export const exchangeToken = async (req: Request, res: Response): Promise<void> => {
-  if (req.body?.grant_type !== 'authorization_code') {
-    res.status(400).json({ error: 'unsupported_grant_type', error_description: 'Only authorization_code is supported' });
+  if (req.body?.grant_type !== GRANT_TYPES.AUTHORIZATION_CODE) {
+    res.status(400).json({
+      error: OAUTH_ERRORS.UNSUPPORTED_GRANT_TYPE,
+      error_description: `Only ${GRANT_TYPES.AUTHORIZATION_CODE} is supported`,
+    });
     return;
   }
 
@@ -204,76 +238,86 @@ export const exchangeToken = async (req: Request, res: Response): Promise<void> 
   const redirectUri = req.body?.redirect_uri as string | undefined;
   const codeVerifier = req.body?.code_verifier as string | undefined;
   if (!codeRaw || !redirectUri || !codeVerifier) {
-    res.status(400).json({ error: 'invalid_request', error_description: 'Missing code, redirect_uri, or code_verifier' });
+    res.status(400).json({
+      error: OAUTH_ERRORS.INVALID_REQUEST,
+      error_description: 'Missing code, redirect_uri, or code_verifier',
+    });
     return;
   }
 
   const { clientId, clientSecret } = parseBasicOrBody(req);
   if (!clientId) {
-    res.status(401).json({ error: 'invalid_client', error_description: 'Client authentication required' });
+    res.status(401).json({ error: OAUTH_ERRORS.INVALID_CLIENT, error_description: 'Client authentication required' });
     return;
   }
 
   const client = await clientService.findByClientId(clientId, { withSecret: true });
   if (!client) {
-    res.status(401).json({ error: 'invalid_client', error_description: 'Unknown client' });
+    res.status(401).json({ error: OAUTH_ERRORS.INVALID_CLIENT, error_description: 'Unknown client' });
     return;
   }
   if (client.suspended) {
-    res.status(401).json({ error: 'invalid_client', error_description: 'This application has been suspended' });
+    res.status(401).json({ error: OAUTH_ERRORS.INVALID_CLIENT, error_description: 'This application has been suspended' });
     return;
   }
 
   const okSecret = clientSecret ? await clientService.verifyClientSecret(client, clientSecret) : false;
   if (!okSecret) {
-    res.status(401).json({ error: 'invalid_client', error_description: 'Invalid credentials' });
+    res.status(401).json({ error: OAUTH_ERRORS.INVALID_CLIENT, error_description: 'Invalid credentials' });
     return;
   }
 
-  const codeHash = hashToken(String(codeRaw).trim());
-  const recJson = await redis.get(`auth_code:${codeHash}`);
-  if (!recJson) {
-    res.status(400).json({ error: 'invalid_grant', error_description: 'Invalid or expired code' });
+  /*
+   * Redemption: one atomic single-document compare-and-set, run before the binding and
+   * PKCE checks rather than after. That ordering is deliberate — presenting a code
+   * spends it whatever the outcome, so a stolen code is good for exactly one attempt and
+   * the legitimate client's redemption then fails loudly instead of silently succeeding
+   * alongside the attacker's.
+   */
+  const claim = await AuthCodeStore.claim(String(codeRaw).trim());
+
+  if (claim.outcome === CODE_REDEMPTION.REPLAYED) {
+    await _handleReplayedCode(req, claim.code);
+    invalidGrant(res, 'Invalid or expired code');
     return;
   }
-  const rec = JSON.parse(recJson) as AuthCodeData;
+  if (claim.outcome !== CODE_REDEMPTION.CLAIMED) {
+    invalidGrant(res, 'Invalid or expired code');
+    return;
+  }
+
+  const rec = claim.code;
 
   if (rec.clientId !== client.clientId) {
-    res.status(400).json({ error: 'invalid_grant', error_description: 'Invalid or expired code' });
+    invalidGrant(res, 'Invalid or expired code');
     return;
   }
   if (rec.redirectUri !== redirectUri) {
-    res.status(400).json({ error: 'invalid_grant', error_description: 'redirect_uri mismatch' });
+    invalidGrant(res, 'redirect_uri mismatch');
     return;
   }
   if (!verifyPkce(codeVerifier, rec.codeChallenge)) {
-    res.status(400).json({ error: 'invalid_grant', error_description: 'PKCE verification failed' });
+    invalidGrant(res, 'PKCE verification failed');
     return;
   }
-
-  // Single-use: delete before issuing tokens.
-  await redis.del(`auth_code:${codeHash}`);
 
   const user = await User.findById(rec.userId);
   if (!user) {
-    res.status(400).json({ error: 'invalid_grant', error_description: 'User no longer exists' });
+    invalidGrant(res, 'User no longer exists');
     return;
   }
 
-  const opaque = randomBase64Url(32);
-  const tokenHash = hashToken(opaque);
-  const tokenData: AccessTokenData = {
-    tokenHash,
+  const opaque = randomBase64Url(CRYPTO.TOKEN_BYTES.ACCESS_TOKEN);
+  // Calls out to the access-token store; `{ userId, clientId }` is indexed there, which
+  // is what removed the need for a separate Redis index set per (user, client).
+  const { tokenHash } = await AccessTokenStore.create({
+    token: opaque,
     userId: user._id.toString(),
     clientId: client.clientId,
     scope: rec.scope,
-  };
-  await redis.set(`access_token:${tokenHash}`, JSON.stringify(tokenData), 'EX', ACCESS_TOKEN_SECONDS);
-  // Index this token under (user, client) so "revoke app" can invalidate it without a SCAN.
-  // The set's TTL tracks the token lifetime; stale hashes expire with it.
-  const tokenIndexKey = `user_client_tokens:${user._id.toString()}:${client.clientId}`;
-  await redis.sadd(tokenIndexKey, tokenHash);
-  await redis.expire(tokenIndexKey, ACCESS_TOKEN_SECONDS);
+  });
+  // Link the token back to the code so a later replay knows exactly what to revoke.
+  await AuthCodeStore.linkIssuedAccessToken(rec.codeHash, tokenHash);
 
   const now = Math.floor(Date.now() / 1000);
   const idClaims: Record<string, unknown> = {
@@ -306,21 +350,10 @@ export const exchangeToken = async (req: Request, res: Response): Promise<void> 
   });
 };
 
-/** Invalidate every outstanding access token a user holds for one client. Returns
- *  how many were deleted. Used by "revoke app" on the user dashboard. */
-export const revokeAccessTokensForClient = async (
-  userId: string,
-  clientId: string,
-): Promise<number> => {
-  const indexKey = `user_client_tokens:${userId}:${clientId}`;
-  const hashes = await redis.smembers(indexKey);
-  let removed = 0;
-  if (hashes.length) {
-    removed = await redis.del(...hashes.map((h) => `access_token:${h}`));
-  }
-  await redis.del(indexKey);
-  return removed;
-};
+/** Invalidate every outstanding access token a user holds for one client. Returns how
+ *  many were revoked. Used by "revoke app" on the user dashboard. */
+export const revokeAccessTokensForClient = (userId: string, clientId: string): Promise<number> =>
+  AccessTokenStore.revokeForUserClient(userId, clientId, REVOKE_REASONS.USER_REVOKED_APP);
 
 // ── Userinfo ───────────────────────────────────────────────────────────────
 export const getUserinfo = async (req: Request, res: Response): Promise<void> => {
@@ -358,10 +391,11 @@ export const loadConsentContext = async (userId: string, transactionId?: string)
   if (!transactionId || typeof transactionId !== 'string') {
     throw ApiError.badRequest('transaction_id is required');
   }
-  const arJson = await redis.get(`auth_req:${transactionId.trim()}:${userId}`);
-  if (!arJson) throw ApiError.badRequest('Invalid or expired transaction');
+  // Read-only: rendering the consent screen must not consume the transaction, so this
+  // is a `findPending` rather than the CAS claim used by `completeConsent`.
+  const ar = await AuthRequestStore.findPending(transactionId.trim(), userId);
+  if (!ar) throw ApiError.badRequest('Invalid or expired transaction');
 
-  const ar = JSON.parse(arJson) as AuthReqData;
   const client = await clientService.findByClientId(ar.clientId);
   if (!client) throw ApiError.badRequest('Client not found');
 
@@ -382,17 +416,20 @@ export const completeConsent = async (userId: string, transactionId: string, dec
   const d = String(decision || '').toLowerCase();
   if (d !== 'allow' && d !== 'deny') throw ApiError.badRequest('decision must be allow or deny');
 
-  const arJson = await redis.get(`auth_req:${tid}:${userId}`);
-  if (!arJson) throw ApiError.badRequest('Invalid or expired transaction');
-  const ar = JSON.parse(arJson) as AuthReqData;
+  /*
+   * Claim the transaction up front with the same single-document compare-and-set used
+   * for authorization codes. One decision therefore yields at most one code, however
+   * many times the consent form is submitted — the previous `get` … `del` pair left a
+   * window where a double-submit minted two.
+   */
+  const ar = await AuthRequestStore.consume(tid, userId);
+  if (!ar) throw ApiError.badRequest('Invalid or expired transaction');
 
   const client = await clientService.findByClientId(ar.clientId);
   if (!client) {
-    await redis.del(`auth_req:${tid}:${userId}`);
     throw ApiError.badRequest('Client not found');
   }
   if (client.suspended) {
-    await redis.del(`auth_req:${tid}:${userId}`);
     return {
       message: 'Application suspended',
       granted: false,
@@ -411,11 +448,9 @@ export const completeConsent = async (userId: string, transactionId: string, dec
     scope: ar.scope,
     state: ar.state,
     codeChallenge: ar.codeChallenge,
-    codeChallengeMethod: 'S256',
+    codeChallengeMethod: CODE_CHALLENGE_METHODS.S256,
     nonce: ar.nonce,
   };
-
-  await redis.del(`auth_req:${tid}:${userId}`);
 
   if (d === 'deny') {
     return {

@@ -1,13 +1,13 @@
 import type { Request, Response, NextFunction } from 'express';
 import { asyncHandler } from '../../common/utils/asyncHandler';
-import { hashToken } from '../../common/utils/crypto.utils';
-import { redis } from '../../common/config/redis';
+import { BEARER_PREFIX } from '../../common/constants/index.constants';
+import { AccessTokenStore } from './access-token.store';
 
 /** Resolve an opaque Bearer access token (from /oauth/token) into req.oauth. */
 export const authenticateOidcAccess = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const auth = req.headers.authorization;
-    if (!auth?.startsWith('Bearer ')) {
+    if (!auth?.startsWith(BEARER_PREFIX)) {
       res
         .status(401)
         .set('WWW-Authenticate', 'Bearer error="invalid_token"')
@@ -15,9 +15,10 @@ export const authenticateOidcAccess = asyncHandler(
       return;
     }
 
-    const token = auth.slice(7);
-    const tokenJson = await redis.get(`access_token:${hashToken(token)}`);
-    if (!tokenJson) {
+    // Calls out to the access-token store, which filters on `revokedAt` and `expiresAt`
+    // itself — the TTL index reaps on a ~60 s cycle and cannot be what enforces expiry.
+    const token = await AccessTokenStore.findLive(auth.slice(BEARER_PREFIX.length));
+    if (!token) {
       res
         .status(401)
         .set('WWW-Authenticate', 'Bearer error="invalid_token"')
@@ -25,8 +26,11 @@ export const authenticateOidcAccess = asyncHandler(
       return;
     }
 
-    const row = JSON.parse(tokenJson) as { userId: string; clientId: string; scope: string };
-    req.oauth = { userId: row.userId, clientId: row.clientId, scope: row.scope };
+    req.oauth = {
+      userId: token.userId.toString(),
+      clientId: token.clientId,
+      scope: token.scope,
+    };
     next();
   },
 );

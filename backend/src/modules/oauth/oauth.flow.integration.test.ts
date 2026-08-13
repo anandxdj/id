@@ -32,7 +32,7 @@ const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T> =>
 before(async () => {
   try {
     const mongoose = (await import('mongoose')).default;
-    const { redis } = await import('../../common/config/redis');
+    const { getRedis } = await import('../../common/config/redis');
     const { initOidcKeys } = await import('../../common/utils/keys.utils');
 
     await withTimeout(
@@ -42,7 +42,9 @@ before(async () => {
       }),
       2000,
     );
-    await withTimeout(redis.ping(), 2000);
+    // Codes, requests and tokens are Mongo collections since M1; Redis is here only
+    // because it backs the rate-limit counters on /oauth/token.
+    await withTimeout(getRedis().ping(), 2000);
     await initOidcKeys();
 
     const { User } = await import('../auth/auth.model');
@@ -80,8 +82,8 @@ before(async () => {
       await mongoose.disconnect();
     } catch { /* ignore */ }
     try {
-      const { redis } = await import('../../common/config/redis');
-      redis.disconnect();
+      const { disconnectRedis } = await import('../../common/config/redis');
+      await disconnectRedis();
     } catch { /* ignore */ }
     IntegrationGate.reportUnavailable('oauth.flow', cause);
   }
@@ -91,15 +93,26 @@ after(async () => {
   server?.close();
   if (available) {
     const mongoose = (await import('mongoose')).default;
-    const { redis } = await import('../../common/config/redis');
+    const { disconnectRedis } = await import('../../common/config/redis');
     const { User } = await import('../auth/auth.model');
     const { OAuthClient } = await import('../oauth-client/oauth-client.model');
     const Consent = (await import('./consent.model')).default;
+    const { Session } = await import('../auth/session.model');
+    const { OAuthAuthCode } = await import('./oauth-auth-code.model');
+    const { OAuthAuthRequest } = await import('./oauth-auth-request.model');
+    const { OAuthAccessToken } = await import('./oauth-access-token.model');
+    const user = await User.findOne({ email: EMAIL });
+    if (user) {
+      await Session.deleteMany({ userId: user._id });
+      await OAuthAuthRequest.deleteMany({ userId: user._id });
+    }
     await User.deleteMany({ email: EMAIL });
     await OAuthClient.deleteMany({ clientId });
     await Consent.deleteMany({ clientId });
+    await OAuthAuthCode.deleteMany({ clientId });
+    await OAuthAccessToken.deleteMany({ clientId });
     await mongoose.disconnect();
-    redis.disconnect();
+    await disconnectRedis();
   }
 });
 
@@ -225,6 +238,171 @@ test('authorize → consent → token → userinfo, with PKCE + single-use code'
   assert.equal(replay.status, 400);
   const replayBody = (await replay.json()) as { error: string };
   assert.equal(replayBody.error, 'invalid_grant');
+});
+
+/** Obtain a fresh authorization code. Consent is already granted by the first test, so
+ *  /authorize hands one back without a consent round-trip. */
+const freshCode = async (verifier: string, state = 'state-reuse'): Promise<string> => {
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: REDIRECT_URI,
+    response_type: 'code',
+    scope: 'openid',
+    state,
+    code_challenge: pkceChallengeS256(verifier),
+    code_challenge_method: 'S256',
+  });
+  const res = await fetch(`${base}/oauth/authorize?${params}`, {
+    headers: { cookie: accessCookie },
+    redirect: 'manual',
+  });
+  return new URL(res.headers.get('location')!).searchParams.get('code')!;
+};
+
+const redeem = (code: string, verifier: string) =>
+  fetch(`${base}/oauth/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: verifier,
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+  });
+
+/** Events are recorded fire-and-forget, so give the write a moment to land. */
+const eventuallyCount = async (type: string, atLeast: number): Promise<number> => {
+  const { AuthEvent } = await import('../events/event.model');
+  const deadline = Date.now() + 2000;
+  let count = 0;
+  do {
+    count = await AuthEvent.countDocuments({ type });
+    if (count >= atLeast) return count;
+    await new Promise((r) => setTimeout(r, 50));
+  } while (Date.now() < deadline);
+  return count;
+};
+
+test('a replayed valid code is distinguishable from an unknown one, and revokes what it issued', async (t) => {
+  if (!available) {
+    t.skip('Mongo/Redis not reachable');
+    return;
+  }
+  const { OAuthAuthCode } = await import('./oauth-auth-code.model');
+  const { OAuthAccessToken } = await import('./oauth-access-token.model');
+  const { hashToken } = await import('../../common/utils/crypto.utils');
+
+  const verifier = randomBase64Url(32);
+  const code = await freshCode(verifier);
+  const codeHash = hashToken(code);
+
+  const first = await redeem(code, verifier);
+  assert.equal(first.status, 200);
+  const issued = (await first.json()) as { access_token: string };
+
+  // The redemption is a compare-and-set that keeps the row: consumed, not deleted, and
+  // pointing at what it issued.
+  const consumed = (await OAuthAuthCode.findOne({ codeHash }).lean())!;
+  assert.ok(consumed.consumedAt instanceof Date, 'code is marked consumed');
+  assert.equal(consumed.issuedAccessTokenHash, hashToken(issued.access_token));
+  assert.equal((await OAuthAccessToken.findOne({ tokenHash: consumed.issuedAccessTokenHash }).lean())!.revokedAt, null);
+
+  const replaysBefore = await eventuallyCount('oauth.code.replayed', 0);
+
+  // Replay of a genuine code: same 400 to the client, but a security event for us.
+  const replay = await redeem(code, verifier);
+  assert.equal(replay.status, 400);
+  assert.equal(((await replay.json()) as { error: string }).error, 'invalid_grant');
+
+  assert.equal(
+    await eventuallyCount('oauth.code.replayed', replaysBefore + 1),
+    replaysBefore + 1,
+    'the replay was recorded as a security event',
+  );
+  const revoked = (await OAuthAccessToken.findOne({ tokenHash: consumed.issuedAccessTokenHash }).lean())!;
+  assert.ok(revoked.revokedAt instanceof Date, 'the token issued from the code was revoked');
+
+  // ...and the revoked token no longer works at a resource endpoint.
+  const userinfo = await fetch(`${base}/oauth/userinfo`, {
+    headers: { authorization: `Bearer ${issued.access_token}` },
+  });
+  assert.equal(userinfo.status, 401);
+
+  // An unknown code looks the same to the client but records nothing: losing that
+  // distinction is exactly what a findOneAndDelete-based redemption would cost us.
+  const unknown = await redeem(randomBase64Url(32), verifier);
+  assert.equal(unknown.status, 400);
+  assert.equal(((await unknown.json()) as { error: string }).error, 'invalid_grant');
+  assert.equal(
+    await eventuallyCount('oauth.code.replayed', replaysBefore + 2),
+    replaysBefore + 1,
+    'an unknown code is not treated as a replay',
+  );
+});
+
+test('an expired code is refused before the TTL reaper removes it', async (t) => {
+  if (!available) {
+    t.skip('Mongo/Redis not reachable');
+    return;
+  }
+  const { OAuthAuthCode } = await import('./oauth-auth-code.model');
+  const { hashToken } = await import('../../common/utils/crypto.utils');
+
+  const verifier = randomBase64Url(32);
+  const code = await freshCode(verifier, 'state-expired');
+  const codeHash = hashToken(code);
+
+  // Mongo's TTL monitor runs on a ~60 s cycle, so this is the real state of an expired
+  // code for up to a minute: still present, and must not be spendable.
+  await OAuthAuthCode.updateOne({ codeHash }, { $set: { expiresAt: new Date(Date.now() - 60_000) } });
+  assert.ok(await OAuthAuthCode.findOne({ codeHash }).lean(), 'document is still present');
+
+  const res = await redeem(code, verifier);
+  assert.equal(res.status, 400);
+  assert.equal(((await res.json()) as { error: string }).error, 'invalid_grant');
+  assert.equal(
+    (await OAuthAuthCode.findOne({ codeHash }).lean())!.consumedAt,
+    null,
+    'an expired code is never claimed, so it cannot be confused with a replay',
+  );
+});
+
+test('a consent transaction can be claimed once, and only by its owner', async (t) => {
+  if (!available) {
+    t.skip('Mongo/Redis not reachable');
+    return;
+  }
+  const mongoose = (await import('mongoose')).default;
+  const { AuthRequestStore } = await import('./auth-request.store');
+  const { OAuthAuthRequest } = await import('./oauth-auth-request.model');
+
+  const owner = new mongoose.Types.ObjectId().toString();
+  const stranger = new mongoose.Types.ObjectId().toString();
+  const transactionId = `txn_cas_${Date.now()}`;
+  await AuthRequestStore.create({
+    transactionId,
+    userId: owner,
+    clientId,
+    redirectUri: REDIRECT_URI,
+    scope: 'openid',
+    state: 'st',
+    codeChallenge: 'x'.repeat(43),
+    codeChallengeMethod: 'S256',
+  });
+
+  assert.equal(await AuthRequestStore.consume(transactionId, stranger), null, 'scoped to its owner');
+  assert.ok(await AuthRequestStore.findPending(transactionId, owner), 'reading does not consume');
+  assert.ok(await AuthRequestStore.consume(transactionId, owner), 'the owner claims it');
+  assert.equal(
+    await AuthRequestStore.consume(transactionId, owner),
+    null,
+    'a second decision cannot mint a second code',
+  );
+
+  await OAuthAuthRequest.deleteOne({ transactionId });
 });
 
 test('token endpoint rejects a bad PKCE verifier', async (t) => {
