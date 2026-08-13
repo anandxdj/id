@@ -70,4 +70,20 @@ export const AccessTokenStore = {
     );
     return result.modifiedCount;
   },
+
+  /**
+   * Revoke every live token a user holds, across all clients.
+   *
+   * Needed by password reset and account closure. The reference implementation revokes
+   * only the session row on both (§2.3-15), so a third party's access token outlives the
+   * reset that was supposed to end the intruder's access — which defeats the entire point
+   * of the flow.
+   */
+  async revokeAllForUser(userId: string, reason: RevokeReason): Promise<number> {
+    const result = await OAuthAccessToken.updateMany(
+      _liveFilter({ userId: new mongoose.Types.ObjectId(userId) }),
+      { $set: { revokedAt: new Date(), revokedReason: reason } },
+    );
+    return result.modifiedCount;
+  },
 };

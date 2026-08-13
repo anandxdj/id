@@ -6,9 +6,28 @@ export const EVENT_TYPES = [
   // first-party auth
   'login.success',
   'login.fail',
+  /**
+   * A login was refused by the windowed throttle before credentials were examined. A
+   * distinct type from `login.fail` on purpose: a burst of these is an attack in progress,
+   * whereas `login.fail` is mostly people mistyping.
+   */
+  'login.throttled',
   'logout',
   'session.created',
   'session.revoked',
+  // identity lifecycle (M2)
+  'register',
+  'email.verification.sent',
+  'email.verified',
+  'password.reset.requested',
+  'password.reset.completed',
+  /**
+   * An action token was presented and refused. `meta.outcome` distinguishes a replay of a
+   * genuine token from a superseded link or pure noise — the client is told the same thing
+   * in every case, so this event is the only place the difference is visible.
+   */
+  'action_token.rejected',
+  'account.deleted',
   // OIDC flow
   'token.issued',
   'userinfo.access',
