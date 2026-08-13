@@ -22,19 +22,36 @@ after(() => {
   server?.close();
 });
 
-test('GET /health returns 200 with status ok', async () => {
+test('GET /health is a pure liveness probe — 200 regardless of downstream state', async () => {
   const res = await fetch(`${base}/health`);
   assert.equal(res.status, 200);
-  const body = (await res.json()) as { status: string; database: string };
+  const body = (await res.json()) as { status: string; uptimeSeconds: number };
   assert.equal(body.status, 'ok');
-  // No DB connected in the test process — reports disconnected, does not crash.
+  assert.equal(typeof body.uptimeSeconds, 'number');
+  // Deliberately independent of the database: a brief connection blip must not make the
+  // orchestrator restart an otherwise-healthy process.
+  assert.equal('database' in body, false);
+});
+
+test('GET /ready reports 503 while the database is unreachable', async () => {
+  const res = await fetch(`${base}/ready`);
+  // No DB connected in this test process, so the instance is not ready for traffic.
+  assert.equal(res.status, 503);
+  const body = (await res.json()) as { status: string; database: string };
+  assert.equal(body.status, 'not_ready');
   assert.equal(body.database, 'disconnected');
 });
 
 test('unknown route returns 404 via ApiError + errorHandler', async () => {
   const res = await fetch(`${base}/no-such-route`);
   assert.equal(res.status, 404);
-  const body = (await res.json()) as { success: boolean; message: string };
+  const body = (await res.json()) as { success: boolean; message: string; code: string };
   assert.equal(body.success, false);
   assert.match(body.message, /not found/i);
+  assert.equal(body.code, 'NOT_FOUND');
+});
+
+test('a request id is echoed on every response', async () => {
+  const res = await fetch(`${base}/health`);
+  assert.match(res.headers.get('x-request-id') ?? '', /^[A-Za-z0-9_-]{8,64}$/);
 });
