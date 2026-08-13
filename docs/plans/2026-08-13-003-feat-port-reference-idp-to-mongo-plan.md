@@ -1,6 +1,6 @@
 # 003 — Port the reference IdP feature set onto our Mongo stack
 
-**Status:** §3 signed off (see §8) — **M0, M1, M2, M3, M4, M6 merged on `integration/m1-m6`**; M5 next
+**Status:** §3 signed off (see §8) — **M0–M4 + M6 merged on `integration/m1-m6`**; **M5 + M7 on `feat/m5-m7-admin-and-ui`**; M8 remaining
 **Reference:** `github.com/imohit159/oidc-oauth-1o1` (read-only study copy)
 **Scope:** backend + shared contracts only. Our UI stays ours; the reference frontend is not ported.
 

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { tokenStore } from '@/lib/token-store';
-import * as authApi from '@/features/auth/services/authApi';
+import { AuthApi } from '@/features/auth/services/authApi';
 import type { User } from '@/types';
 
 interface AuthContextValue {
@@ -24,12 +24,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function restoreSession() {
       try {
-        const { accessToken } = await authApi.refreshRequest();
+        const { accessToken } = await AuthApi.refresh();
         tokenStore.set(accessToken);
-        const me = await authApi.meRequest();
+        const me = await AuthApi.me();
         setUser(me);
       } catch {
-        // no valid session — stay logged out
+        tokenStore.set(null);
+        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -37,27 +38,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     restoreSession();
   }, []);
 
+  useEffect(() => {
+    return tokenStore.subscribe((token) => {
+      if (token === null) setUser(null);
+    });
+  }, []);
+
   async function login(email: string, password: string) {
-    const { user: u, accessToken } = await authApi.loginRequest(email, password);
+    const { user: u, accessToken } = await AuthApi.login(email, password);
     tokenStore.set(accessToken);
     setUser(u);
     return u;
   }
 
   async function register(name: string, email: string, password: string) {
-    await authApi.registerRequest(name, email, password);
+    await AuthApi.register(name, email, password);
   }
 
   async function setSession(accessToken: string) {
     tokenStore.set(accessToken);
-    const me = await authApi.meRequest();
+    const me = await AuthApi.me();
     setUser(me);
     return me;
   }
 
   async function logout() {
     try {
-      await authApi.logoutRequest();
+      await AuthApi.logout();
     } catch {
       // ignore — clear local state regardless
     }
