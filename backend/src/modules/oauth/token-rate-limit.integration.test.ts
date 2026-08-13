@@ -24,6 +24,11 @@ process.env.OIDC_ISSUER ??= 'http://localhost:4000';
 process.env.JWT_ACCESS_SECRET ??= 'test-access-secret';
 process.env.JWT_REFRESH_SECRET ??= 'test-refresh-secret';
 process.env.MONGO_DB_NAME ??= 'id_test';
+// Exclusive Redis DB: this file asserts the token-limiter keyset is exactly the
+// keys it just wrote. Sharing db 9 with the other OIDC suites makes that racy.
+if (process.env.REDIS_URL) {
+  process.env.REDIS_URL = process.env.REDIS_URL.replace(/\/\d+(\?|$)/, '/8$1');
+}
 
 const EMAIL = 'token-rate-limit@tabbio.com';
 const PASSWORD = 'sup3r-secret-pw';

@@ -10,7 +10,6 @@ import { Logger } from '../../common/logger/index.logger';
 import * as clientService from '../oauth-client/oauth-client.service';
 import * as events from '../events/event.service';
 import { revokeSession } from '../auth/auth.service';
-import { SessionStore } from '../auth/session.store';
 import { AccessTokenStore } from './access-token.store';
 import { ClientPolicy } from './client-policy.service';
 import { SigningKeyService } from './signing-key.service';
@@ -100,9 +99,11 @@ export const EndSessionService = {
 
     if (userId) {
       if (req.user?.sessionId) {
+        // `req.user.sessionId` is already the handle; hashing it again would revoke
+        // nothing and leave the OP session live after a successful logout.
         sessionEnded = await revokeSession(
           userId,
-          SessionStore.handleOf(req.user.sessionId),
+          req.user.sessionId,
           events.reqContext(req),
           REVOKE_REASONS.RP_INITIATED_LOGOUT,
         );

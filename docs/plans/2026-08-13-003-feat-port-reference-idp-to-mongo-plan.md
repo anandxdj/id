@@ -1,6 +1,6 @@
 # 003 — Port the reference IdP feature set onto our Mongo stack
 
-**Status:** §3 signed off (see §8) — **M0, M1, M2, M3 complete**; M4 next
+**Status:** §3 signed off (see §8) — **M0, M1, M2, M3, M4, M6 merged on `integration/m1-m6`**; M5 next
 **Reference:** `github.com/imohit159/oidc-oauth-1o1` (read-only study copy)
 **Scope:** backend + shared contracts only. Our UI stays ours; the reference frontend is not ported.
 
@@ -693,3 +693,24 @@ though it were meaningful.
 
 **Verification:** `pnpm typecheck` clean; 119 tests, 119 pass, 0 fail, 0 skipped against a
 live one-member replica set and Redis (99 before M3).
+
+### integration/m1-m6 — M1+M2+M3+M4+M6 ✅
+
+Merged onto `main` in that order. M1–M3 and M6 were clean. M4 conflicted in five files;
+each resolution is a union, not a side:
+
+| File | What both sides added | If you take one side |
+|---|---|---|
+| `indexSync.ts` | M2/M3 TTL targets (action tokens, login throttles, refresh tokens) **and** M4 signing-key TTL | `expireAfterSeconds` is never reconciled for the dropped collection |
+| `backend/index.ts` | M2 Argon2 warmup **and** M4 `SigningKeyService.init()`, after `Config.validate()` | First login pays for the module load, or replicas sign with different keys |
+| `app.constants.ts` | Purely additive; no key had disagreeing values | — |
+| `testing/index.testing.ts` | `TestFixtures` (M2) **and** `OidcHarness` (M4) | Fixtures store plaintext, or OIDC suites have no shared setup |
+| `access-token.store.ts` | M3 `revokeAllForUser` **and** M4 `grantId`/`jti`/`revokeByGrant`/`findAny` | Suspension/reset leaves OIDC tokens live, or RFC 7009 cannot cascade |
+
+Two further M3×M4 mismatches that did not conflict as text, so a three-way merge cannot see them:
+
+1. **Session handle vs raw sid.** M3 puts the handle (`sha256(sid)`) on `req.user.sessionId`. M4's authorize/consent/`end_session` passed that value through `findActiveSession` / `SessionStore.handleOf`, which hash a *raw* sid. The second hash looks up a document that cannot exist, so every `/oauth/authorize` bounced a logged-in user to `/login`. Fixed to `SessionStore.findActive(userId, handle)` and to pass the handle to `revokeSession` unhashed.
+2. **Harness fixtures.** M4's `OidcHarness` still did `User.create({ password: plaintext })`. M2 removed the hashing hook, so login never matched. Routed through `TestFixtures.passwordHash`. Also stopped `clearRateLimitCounters` from wiping `id:rl:api:*`, which was a false negative on the M1 "counters live in Redis" test when the suite runs in parallel.
+
+**Verification:** `pnpm typecheck` clean; 191 tests, 191 pass, 0 fail, 0 skipped (28 files; 63+36+20+72). Isolated against Mongo `rs0` on 27018 / db `id_integrate` and Redis 6380/9. M5 is not in this branch.
+

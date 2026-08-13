@@ -29,11 +29,19 @@ export interface HarnessContext {
   cookie: string;
 }
 
-const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
-  Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('probe timeout')), ms)),
-  ]);
+const withTimeout = async <T>(promise: Promise<T>, ms: number): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('probe timeout')), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
 
 export const OidcHarness = {
   /**
@@ -50,11 +58,18 @@ export const OidcHarness = {
    */
   async clearRateLimitCounters(): Promise<void> {
     const { redisCommand } = await import('../config/redis');
-    const { REDIS_KEYS } = await import('../constants/index.constants');
+    const { RATE_LIMIT_SCOPES, REDIS_KEYS } = await import('../constants/index.constants');
     try {
-      const keys = (await redisCommand(['KEYS', `${REDIS_KEYS.RATE_LIMIT}*`])) as string[];
-      if (Array.isArray(keys) && keys.length > 0) {
-        await redisCommand(['DEL', ...keys]);
+      // AUTH + TOKEN + SENSITIVE share 15-minute windows that a parallel suite will
+      // otherwise exhaust. The API backstop is left alone: `rateLimit.integration`
+      // asserts those keys exist, and wiping `id:rl:*` from another worker is a
+      // false negative on "counters live in Redis".
+      const scopes = [RATE_LIMIT_SCOPES.AUTH, RATE_LIMIT_SCOPES.TOKEN, RATE_LIMIT_SCOPES.SENSITIVE];
+      for (const scope of scopes) {
+        const keys = (await redisCommand(['KEYS', `${REDIS_KEYS.RATE_LIMIT}${scope}:*`])) as string[];
+        if (Array.isArray(keys) && keys.length > 0) {
+          await redisCommand(['DEL', ...keys]);
+        }
       }
     } catch {
       // The limiters fail open, so a Redis that cannot be reached here costs nothing.
@@ -80,13 +95,21 @@ export const OidcHarness = {
     await SigningKeyService.init();
 
     const { User } = await import('../../modules/auth/auth.model');
+    const { TestFixtures } = await import('./fixtures');
+    const { LoginThrottleStore } = await import('../../modules/auth/login-throttle.store');
+    const { UserStore } = await import('../../modules/auth/user.store');
     await User.deleteMany({ email: options.email });
+    // The model is pure schema since M2 and hashes nothing — a plaintext password
+    // here is stored as-is and login will never match it.
     const user = await User.create({
       name: options.name ?? 'OIDC Harness',
       email: options.email,
-      password: options.password,
+      password: await TestFixtures.passwordHash(options.password),
       isVerified: true,
     });
+    // Prior failed harness logins (plaintext digest, parallel retries) leave a
+    // windowed lock that would 429 the next attempt for 15 minutes.
+    await LoginThrottleStore.clear(UserStore.normalizeEmail(options.email));
 
     const { createApp } = await import('../../app');
     const app = createApp();
@@ -96,14 +119,21 @@ export const OidcHarness = {
     const address = server.address();
     const base = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`;
 
-    const login = await fetch(`${base}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: options.email, password: options.password }),
-    });
-    const body = (await login.json()) as { data?: { accessToken?: string } };
+    const login = await withTimeout(
+      fetch(`${base}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: options.email, password: options.password }),
+      }),
+      15_000,
+    );
+    const body = (await login.json()) as { data?: { accessToken?: string }; code?: string };
     const sessionToken = body.data?.accessToken;
-    if (!sessionToken) throw new Error('harness login did not return an access token');
+    if (!sessionToken) {
+      throw new Error(
+        `harness login did not return an access token (status ${login.status}, code ${body.code ?? 'none'})`,
+      );
+    }
 
     return {
       base,

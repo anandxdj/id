@@ -27,7 +27,7 @@ import type { OAuthErrorCode } from '../../common/constants/index.constants';
 import { Logger } from '../../common/logger/index.logger';
 import * as clientService from '../oauth-client/oauth-client.service';
 import * as events from '../events/event.service';
-import { findActiveSession } from '../auth/auth.service';
+import { SessionStore } from '../auth/session.store';
 import User from '../auth/auth.model';
 import Consent from './consent.model';
 import { AuthRequestStore } from './auth-request.store';
@@ -283,9 +283,13 @@ export const getAuthorize = async (req: Request): Promise<AuthorizeOutcome> => {
   }
 
   // ── Authentication ─────────────────────────────────────────────────────────
-  // `findActiveSession` is what supplies `auth_time`: the moment the end user actually
-  // authenticated, which is not the moment this request arrived.
-  const session = req.user ? await findActiveSession(req.user.id, req.user.sessionId) : null;
+  // `req.user.sessionId` is the session *handle* (sha256 of the sid) since M3 —
+  // `findActiveSession` hashes a raw sid, so passing the handle through it looks
+  // up a document that cannot exist and every authorize request bounces to /login.
+  const session =
+    req.user?.sessionId != null
+      ? await SessionStore.findActive(req.user.id, req.user.sessionId)
+      : null;
   if (!req.user || !session) {
     return promptNone
       ? fail(OAUTH_ERRORS.LOGIN_REQUIRED, 'Authentication is required and prompt=none was set')
@@ -656,7 +660,7 @@ export const loadConsentContext = async (userId: string, transactionId?: string)
 
 export interface CompleteConsentInput {
   userId: string;
-  /** The caller's session id, used to read `auth_time` for the issued code. */
+  /** The caller's session handle (`req.user.sessionId`), used to read `auth_time`. */
   sessionId?: string | null;
   transactionId: string;
   decision: string;
@@ -724,7 +728,9 @@ export const completeConsent = async (input: CompleteConsentInput) => {
     approved: input.scope === undefined ? requested : ScopeUtil.parse(input.scope),
   });
 
-  const session = await findActiveSession(input.userId, input.sessionId);
+  const session = input.sessionId
+    ? await SessionStore.findActive(input.userId, input.sessionId)
+    : null;
   const code = await _issueAuthCode({
     userId: input.userId,
     clientId: ar.clientId,
