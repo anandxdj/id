@@ -1,4 +1,5 @@
 import type { OAuthConnector } from './types';
+import { Config } from '../../../common/config/config';
 import { googleConnector } from './google.connector';
 import { githubConnector } from './github.connector';
 
@@ -9,9 +10,9 @@ const ALL: OAuthConnector[] = [googleConnector, githubConnector];
  * others are configured. Unset → every connector whose credentials are present is enabled.
  */
 const allowlist = (): Set<string> | null => {
-  const raw = process.env.AUTH_CONNECTORS;
-  if (!raw) return null;
-  return new Set(raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+  const configured = Config.connectors.enabled;
+  if (configured.length === 0) return null;
+  return new Set(configured.map((provider) => provider.toLowerCase()));
 };
 
 /** Connectors that are both configured (creds present) and permitted by the allowlist. */

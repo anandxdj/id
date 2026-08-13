@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { ApiError } from '../../common/utils/ApiError';
 import { redis } from '../../common/config/redis';
+import { Config } from '../../common/config/config';
 import { getOidcIssuer, signIdToken } from '../../common/utils/keys.utils';
 import { hashToken, randomBase64Url, verifyPkce } from '../../common/utils/crypto.utils';
 import * as clientService from '../oauth-client/oauth-client.service';
@@ -10,15 +11,9 @@ import Consent from './consent.model';
 
 const ACCESS_TOKEN_SECONDS = 900;
 
-const stripTrailingSlash = (s: string) => s.replace(/\/$/, '');
+const loginBase = () => Config.web.loginRedirectBase;
 
-const loginBase = () =>
-  stripTrailingSlash(
-    process.env.OIDC_LOGIN_REDIRECT_BASE || process.env.FRONTEND_URL || 'http://localhost:3000',
-  );
-
-const consentBase = () =>
-  stripTrailingSlash(process.env.OIDC_CONSENT_REDIRECT_BASE || process.env.FRONTEND_URL || loginBase());
+const consentBase = () => Config.web.consentRedirectBase;
 
 const hasScope = (scopeStr: string, needle: string): boolean =>
   (scopeStr || '').split(/\s+/).filter(Boolean).includes(needle);

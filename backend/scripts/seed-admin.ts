@@ -1,32 +1,38 @@
 import 'dotenv/config';
 import mongoose from 'mongoose';
 import { connectDB } from '../src/common/config/db';
+import { Config } from '../src/common/config/config';
+import { USER_ROLES } from '../src/common/constants/index.constants';
 import User from '../src/modules/auth/auth.model';
+
+const DEFAULT_ADMIN_NAME = 'Admin';
 
 /**
  * Provision the internal admin account from SEED_ADMIN_* env vars. Idempotent:
  * re-running does not duplicate the user and does not overwrite an existing password.
  */
 async function main() {
-  const email = (process.env.SEED_ADMIN_EMAIL || '').toLowerCase().trim();
-  const name = process.env.SEED_ADMIN_NAME || 'Admin';
-  const password = process.env.SEED_ADMIN_PASSWORD || '';
+  const { adminEmail, adminName, adminPassword } = Config.seed;
 
-  if (!email || !password) {
+  if (!adminEmail || !adminPassword) {
     throw new Error('Set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD in .env');
   }
+
+  const email = adminEmail.toLowerCase().trim();
+  const name = adminName || DEFAULT_ADMIN_NAME;
+  const password = adminPassword;
 
   await connectDB();
 
   const existing = await User.findOne({ email });
   if (existing) {
-    existing.role = 'admin';
+    existing.role = USER_ROLES.ADMIN;
     existing.isVerified = true;
-    if (existing.name === 'Admin' || !existing.name) existing.name = name;
+    if (existing.name === DEFAULT_ADMIN_NAME || !existing.name) existing.name = name;
     await existing.save();
     console.log(`[seed:admin] Updated existing admin: ${email}`);
   } else {
-    await User.create({ name, email, password, role: 'admin', isVerified: true });
+    await User.create({ name, email, password, role: USER_ROLES.ADMIN, isVerified: true });
     console.log(`[seed:admin] Created admin: ${email}`);
   }
 

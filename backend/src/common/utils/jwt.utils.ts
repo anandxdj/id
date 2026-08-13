@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import type { SignOptions } from 'jsonwebtoken';
+import { Config } from '../config/config';
 
 export interface SessionTokenPayload {
   id: string;
@@ -7,30 +8,21 @@ export interface SessionTokenPayload {
   role?: string;
 }
 
-const accessSecret = (): string => {
-  const s = process.env.JWT_ACCESS_SECRET;
-  if (!s) throw new Error('JWT_ACCESS_SECRET is not set');
-  return s;
-};
-
-const refreshSecret = (): string => {
-  const s = process.env.JWT_REFRESH_SECRET;
-  if (!s) throw new Error('JWT_REFRESH_SECRET is not set');
-  return s;
-};
+// Secrets are validated at boot by the config layer (non-empty, distinct, and ≥32 chars
+// in production), so there is no per-call presence check to make here.
 
 export const generateAccessToken = (payload: SessionTokenPayload): string =>
-  jwt.sign(payload, accessSecret(), {
-    expiresIn: (process.env.JWT_ACCESS_EXPIRES_IN || '15m') as SignOptions['expiresIn'],
+  jwt.sign(payload, Config.jwt.accessSecret, {
+    expiresIn: Config.jwt.accessExpiresIn as SignOptions['expiresIn'],
   });
 
 export const verifyAccessToken = (token: string): SessionTokenPayload =>
-  jwt.verify(token, accessSecret()) as SessionTokenPayload;
+  jwt.verify(token, Config.jwt.accessSecret) as SessionTokenPayload;
 
 export const generateRefreshToken = (payload: SessionTokenPayload): string =>
-  jwt.sign(payload, refreshSecret(), {
-    expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as SignOptions['expiresIn'],
+  jwt.sign(payload, Config.jwt.refreshSecret, {
+    expiresIn: Config.jwt.refreshExpiresIn as SignOptions['expiresIn'],
   });
 
 export const verifyRefreshToken = (token: string): SessionTokenPayload =>
-  jwt.verify(token, refreshSecret()) as SessionTokenPayload;
+  jwt.verify(token, Config.jwt.refreshSecret) as SessionTokenPayload;
