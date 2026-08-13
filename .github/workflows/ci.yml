@@ -1,0 +1,268 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A superseded run has nothing left to say, and each one boots two datastore containers.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # The implicit default is `bash -e {0}` — no pipefail. That matters below, where the
+    # test suite is piped through `tee`: without pipefail the step would report tee's
+    # exit status and a failing suite would come back green. `shell: bash` gets
+    # `-eo pipefail`.
+    shell: bash
+
+env:
+  # backend/package.json declares no `engines`, so this follows the two places the Node
+  # version is actually pinned today: backend/Dockerfile (node:22-alpine) and the local
+  # toolchain (v22.x). pnpm's version comes from the `packageManager` field, not here.
+  NODE_VERSION: '22'
+
+jobs:
+  backend:
+    name: backend (typecheck + tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      MONGO_IMAGE: mongo:7
+      MONGO_CONTAINER: ci-mongo
+      MONGO_REPLICA_SET: rs0
+      # Same port inside and outside the container, deliberately. A replica-set member
+      # advertises its own address and the driver re-resolves every connection against
+      # that value, so a mapped port would send clients to whatever is on the host's
+      # port instead. docker-compose.yml pins the ports together for the same reason.
+      MONGO_PORT: '27017'
+      REDIS_IMAGE: redis:7-alpine
+      REDIS_CONTAINER: ci-redis
+      REDIS_PORT: '6379'
+      READINESS_RETRIES: '30'
+      READINESS_INTERVAL_SECONDS: '2'
+      TEST_LOG: test-output.log
+      # A floor, not an equality: it only trips if fewer tests reach the runner than the
+      # suite had when this workflow was written. See the assertion step for the failure
+      # mode it covers.
+      MIN_EXPECTED_TESTS: '54'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # There is no root package.json; the `packageManager` pin lives in the backend.
+          package_json_file: backend/package.json
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: backend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Start datastores
+        run: |
+          # `services:` blocks accept image, env, ports, options and credentials — but not
+          # `command`, and a replica set needs `mongod --replSet`. Both stores therefore
+          # run as plain containers, which also keeps images and ports in one env block.
+          docker run -d --name "${MONGO_CONTAINER}" \
+            -p "${MONGO_PORT}:${MONGO_PORT}" \
+            "${MONGO_IMAGE}" --replSet "${MONGO_REPLICA_SET}" --bind_ip_all --port "${MONGO_PORT}"
+
+          docker run -d --name "${REDIS_CONTAINER}" \
+            -p "${REDIS_PORT}:6379" \
+            "${REDIS_IMAGE}"
+
+      - name: Wait for datastores
+        run: |
+          # Poll until the probe exits 0 inside the container. mongosh's `quit(n)` sets the
+          # exit code, so the readiness condition is the exit status rather than scraped
+          # stdout.
+          wait_for() {
+            local label="$1" container="$2"
+            shift 2
+            for _ in $(seq 1 "${READINESS_RETRIES}"); do
+              if docker exec "${container}" "$@" >/dev/null 2>&1; then
+                echo "${label}: ready"
+                return 0
+              fi
+              sleep "${READINESS_INTERVAL_SECONDS}"
+            done
+            echo "::error::${label} was not ready after ${READINESS_RETRIES} attempts"
+            docker logs "${container}" || true
+            return 1
+          }
+
+          wait_for 'redis' "${REDIS_CONTAINER}" redis-cli ping
+
+          # mongod has to accept connections before it can be told to form a set.
+          wait_for 'mongod' "${MONGO_CONTAINER}" \
+            mongosh --port "${MONGO_PORT}" --quiet --eval 'quit(db.adminCommand({ ping: 1 }).ok ? 0 : 1)'
+
+          # Idempotent: rs.status() throws until the set exists, so a re-run initiates
+          # rather than erroring on an already-initiated member.
+          #
+          # The member advertises an IPv4 literal, not `localhost`. Clients re-resolve
+          # every connection against the advertised address, and a `localhost` that
+          # resolves to ::1 on the runner would not reach a port published on 0.0.0.0.
+          docker exec "${MONGO_CONTAINER}" mongosh --port "${MONGO_PORT}" --quiet --eval "
+            try { rs.status().ok }
+            catch (e) {
+              rs.initiate({
+                _id: '${MONGO_REPLICA_SET}',
+                members: [{ _id: 0, host: '127.0.0.1:${MONGO_PORT}' }]
+              }).ok
+            }
+          "
+
+          # rs.initiate() returns before the member finishes electing itself. Starting the
+          # suite at that point yields "not primary" flakes on the first write, which read
+          # like test bugs rather than an infrastructure race.
+          wait_for 'replica set PRIMARY' "${MONGO_CONTAINER}" \
+            mongosh --port "${MONGO_PORT}" --quiet --eval 'quit(db.hello().isWritablePrimary ? 0 : 1)'
+
+      - name: Test
+        env:
+          # The point of this job. The integration suites self-skip when the datastores
+          # are unreachable, and a skip is indistinguishable from a pass in the summary —
+          # so a run whose containers never came up would report green having executed
+          # about half the suite. This flag turns "unreachable" into a hard failure.
+          # See backend/src/common/testing/integrationGate.ts.
+          REQUIRE_INTEGRATION: '1'
+          MONGO_URI: mongodb://127.0.0.1:${{ env.MONGO_PORT }}/?replicaSet=${{ env.MONGO_REPLICA_SET }}
+          REDIS_URL: redis://127.0.0.1:${{ env.REDIS_PORT }}
+          # NODE_ENV is deliberately unset: the config layer defaults to development, where
+          # the JWT secret sentinels are accepted, so CI needs no real secret material.
+        run: pnpm test 2>&1 | tee "${TEST_LOG}"
+
+      - name: Assert the whole suite ran
+        run: |
+          # Belt and braces. REQUIRE_INTEGRATION should make skipping impossible; this
+          # catches the case where the gate silently stops working, and the case where a
+          # test is left skipped by hand.
+          #
+          # node:test prints its summary as `# skipped 0` (TAP, the default when stdout is
+          # not a TTY) or `ℹ skipped 0` (spec reporter). The leading `.` matches either.
+          summary_count() {
+            local field="$1" line
+            line=$(grep -E "^.[[:space:]]+${field}[[:space:]]+[0-9]+$" "${TEST_LOG}" | tail -1)
+            [ -n "${line}" ] || return 1
+            printf '%s' "${line##* }"
+          }
+
+          skipped=$(summary_count skipped) || {
+            echo "::error::No 'skipped' line in the runner summary — the reporter format changed and this guard is no longer checking anything."
+            exit 1
+          }
+          total=$(summary_count tests) || {
+            echo "::error::No 'tests' line in the runner summary — the reporter format changed and this guard is no longer checking anything."
+            exit 1
+          }
+          echo "runner summary: ${total} tests, ${skipped} skipped"
+
+          if [ "${skipped}" -ne 0 ]; then
+            echo "::error::${skipped} test(s) skipped. Under REQUIRE_INTEGRATION=1 nothing may skip: either a datastore was unreachable and the gate failed to catch it, or a test is skipped unconditionally."
+            grep -E '# SKIP' "${TEST_LOG}" | head -20 || true
+            exit 1
+          fi
+
+          # The `test` script globs with `src/**/*.test.ts`. POSIX shells have no globstar,
+          # so today the pattern matches nothing and is handed to node, whose own matcher
+          # expands it recursively. The day a test file lands at src/<dir>/<name>.test.ts
+          # the shell would match that one file and quietly hand the runner a subset —
+          # every test passing, nothing skipped, most of the suite never executed.
+          if [ "${total}" -lt "${MIN_EXPECTED_TESTS}" ]; then
+            echo "::error::Only ${total} tests ran, expected at least ${MIN_EXPECTED_TESTS}. If tests were intentionally removed, lower MIN_EXPECTED_TESTS in this workflow."
+            exit 1
+          fi
+
+      - name: Datastore logs
+        if: failure()
+        run: |
+          docker logs "${MONGO_CONTAINER}" || true
+          docker logs "${REDIS_CONTAINER}" || true
+
+  frontend:
+    name: frontend (lint + typecheck + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # frontend/package.json carries no `packageManager` field, so the version comes
+          # from the one manifest in the repo that pins it. Repeating a literal here would
+          # be a second place to forget when it moves.
+          package_json_file: backend/package.json
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+  image:
+    name: image (production build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      IMAGE_TAG: id-backend:ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        # Build only — nothing is published. This exists so a change that breaks the
+        # runtime image surfaces here rather than at deploy time.
+        run: docker build -f backend/Dockerfile -t "${IMAGE_TAG}" backend/
+
+      - name: Assert the image ships nothing it should not
+        run: |
+          # The guarantees backend/.dockerignore exists to provide, asserted rather than
+          # assumed. A leaked .env is the one that matters: it carries live signing
+          # secrets, and a layer keeps them even if a later layer deletes the file.
+          docker run --rm --entrypoint sh "${IMAGE_TAG}" -c '
+            set -e
+            fail() { echo "::error::$1"; exit 1; }
+            [ "$(id -u)" -ne 0 ] || fail "container runs as root"
+            [ -z "$(find / -name ".env*" -not -path "/proc/*" -not -path "/sys/*" 2>/dev/null)" ] || fail "an .env file is present in the image"
+            [ "$(find /app -name "*.ts" -not -path "*/node_modules/*" | wc -l)" -eq 0 ] || fail "TypeScript sources are present in the image"
+            [ "$(find /app -name "*test*" -not -path "*/node_modules/*" | wc -l)" -eq 0 ] || fail "test files are present in the image"
+            for pkg in tsx typescript; do
+              [ ! -e "/app/node_modules/${pkg}" ] || fail "dev dependency present in the image: ${pkg}"
+            done
+            echo "image contents OK"
+          '
