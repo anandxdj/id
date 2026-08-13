@@ -9,7 +9,7 @@
     "start": "tsx index.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit false --outDir dist --module commonjs --moduleResolution node --verbatimModuleSyntax false --allowImportingTsExtensions false && node -e \"require('node:fs').writeFileSync('dist/package.json',JSON.stringify({type:'commonjs'}))\"",
-    "test": "node --import tsx --test src/**/*.test.ts",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "db:up": "docker compose -f ../docker-compose.yml up -d",
     "db:down": "docker compose -f ../docker-compose.yml down",
     "oidc:generate-keys": "bash scripts/generate-oidc-keys.sh",
