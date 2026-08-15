@@ -123,7 +123,7 @@ after(async () => {
     const users = await User.find({ email: { $in: emails } }).select('_id');
     await Session.deleteMany({ userId: { $in: users.map((u) => u._id) } });
     await User.deleteMany({ email: { $in: emails } });
-    await OAuthClient.deleteMany({ clientName: { $in: ['Admin Made', 'Rotate Me', 'Suspend Me'] } });
+    await OAuthClient.deleteMany({ clientName: { $in: ['Admin Made', 'Native Guide', 'Rotate Me', 'Suspend Me'] } });
     await mongoose.disconnect();
     await disconnectRedis();
   }
@@ -165,6 +165,26 @@ test('config-prompt endpoint tailors to the requested stack', async (t) => {
     await as(adminToken)(`/api/admin/clients/${id}/config-prompt?stack=express`),
   );
   assert.match(exp.data.prompt, /Express/);
+});
+
+test('public native client gets native, secret-free implementation guidance', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+  const res = await as(adminToken)('/api/admin/clients', {
+    method: 'POST',
+    body: JSON.stringify({
+      clientName: 'Native Guide',
+      redirectUris: ['com.example.app:/oauth/callback'],
+      tokenEndpointAuthMethod: 'none',
+      stack: 'react-native',
+    }),
+  });
+  assert.equal(res.status, 201);
+  const { data } = await jsonOf<{ data: { clientSecret?: string; configPrompt: string } }>(res);
+  assert.equal(data.clientSecret, undefined);
+  assert.match(data.configPrompt, /React Native/);
+  assert.match(data.configPrompt, /there is no client secret/);
+  assert.ok(!data.configPrompt.includes('{{CLIENT_SECRET}}'));
+  assert.ok(!data.configPrompt.includes('HTTP Basic auth'));
 });
 
 test('rotate-secret invalidates the old secret at the token endpoint', async (t) => {
@@ -376,4 +396,3 @@ test('listUsers hides closed accounts and does not count them in metrics', async
   const detail = await as(adminToken)(`/api/admin/users/${gone._id}`);
   assert.equal(detail.status, 404);
 });
-

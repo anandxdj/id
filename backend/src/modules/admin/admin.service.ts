@@ -263,7 +263,12 @@ export const createClient = async (input: CreateClientInput, ctx: AdminActionCtx
   });
   events.record('admin.client.created', { ...ctx, clientId: created.clientId, meta: { clientName: created.clientName } });
   const configPrompt = buildClientConfigPrompt(
-    { clientId: created.clientId, clientName: created.clientName, redirectUris: created.redirectUris },
+    {
+      clientId: created.clientId,
+      clientName: created.clientName,
+      redirectUris: created.redirectUris,
+      tokenEndpointAuthMethod: created.tokenEndpointAuthMethod,
+    },
     { stack: input.stack },
   );
   return { ...created, configPrompt };
@@ -306,7 +311,12 @@ export const getClientConfigPrompt = async (clientId: string, stack?: string) =>
   if (!client) throw ApiError.notFound('Client not found');
   const chosen: PromptStack | undefined = isPromptStack(stack) ? stack : undefined;
   return buildClientConfigPrompt(
-    { clientId: client.clientId, clientName: client.clientName, redirectUris: client.redirectUris },
+    {
+      clientId: client.clientId,
+      clientName: client.clientName,
+      redirectUris: client.redirectUris,
+      tokenEndpointAuthMethod: client.tokenEndpointAuthMethod,
+    },
     { stack: chosen },
   );
 };
