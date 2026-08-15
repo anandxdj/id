@@ -7,6 +7,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth';
 import { AdminNav } from '@/features/admin/components/AdminNav';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { Logo } from '@/components/ui/logo';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -31,12 +32,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="min-h-screen bg-background">
       {/* top bar */}
       <header className="sticky top-0 z-20 border-b-2 border-border bg-background/90 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
-          <div>
-            <Link href="/admin" className="font-heading text-xl font-bold tracking-tight">
-              id<span className="text-muted-foreground">/admin</span>
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Link href="/admin" className="select-none flex items-center">
+              <Logo size={48} />
             </Link>
-            <p className="eyebrow mt-0.5 text-muted-foreground">{user.email}</p>
+            <div>
+              <p className="eyebrow text-muted-foreground">{user.email}</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Link href="/account">

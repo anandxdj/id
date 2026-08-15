@@ -2,35 +2,57 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { LayoutDashboard, Users, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const tabs = [
-  { href: '/admin', label: 'Dashboard', exact: true },
-  { href: '/admin/users', label: 'Users', exact: false },
-  { href: '/admin/apps', label: 'Apps', exact: false },
+  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { href: '/admin/users', label: 'Users', icon: Users, exact: false },
+  { href: '/admin/apps', label: 'Apps', icon: Layers, exact: false },
 ];
 
 export function AdminNav() {
   const path = usePathname();
+
   return (
-    <nav className="flex gap-1 overflow-x-auto border-b-2 border-border">
-      {tabs.map((t) => {
-        const active = t.exact ? path === t.href : path.startsWith(t.href);
-        return (
-          <Link
-            key={t.href}
-            href={t.href}
-            className={cn(
-              'whitespace-nowrap border-b-2 px-4 py-3 font-mono text-xs font-bold uppercase tracking-wide transition-colors',
-              active
-                ? '-mb-0.5 border-brand text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {t.label}
-          </Link>
-        );
-      })}
-    </nav>
+    <div className="relative border-b border-border">
+      <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth">
+        {tabs.map((t) => {
+          const active = t.exact ? path === t.href : path.startsWith(t.href);
+          const Icon = t.icon;
+          return (
+            <Link
+              key={t.href}
+              href={t.href}
+              className={cn(
+                'group relative flex items-center gap-2 px-4 py-3 font-mono text-xs font-bold uppercase tracking-wider transition-colors shrink-0 select-none rounded-t-md hover:bg-accent/30',
+                active
+                  ? 'text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Icon
+                className={cn(
+                  'size-3.5 transition-colors',
+                  active ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'
+                )}
+              />
+              <span>{t.label}</span>
+
+              {/* Animated active sliding underline */}
+              {active && (
+                <motion.div
+                  layoutId="activeAdminNavUnderline"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                  className="absolute bottom-0 inset-x-0 h-0.5 bg-brand z-10"
+                />
+              )}
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
   );
 }
+
