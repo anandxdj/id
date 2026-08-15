@@ -107,10 +107,11 @@ export interface AdminMetrics {
 
 export interface CreatedClient {
   clientId: string;
-  clientSecret: string;
+  clientSecret?: string;
   clientName: string;
   redirectUris: string[];
   configPrompt: string;
+  tokenEndpointAuthMethod: string;
 }
 
 export interface AdminUserDetail {

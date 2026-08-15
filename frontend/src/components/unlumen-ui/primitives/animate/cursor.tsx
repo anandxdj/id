@@ -37,15 +37,7 @@ function CursorProvider({ children, global = false }: CursorProviderProps) {
   const cursorRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    const id = "__cursor_none_style__";
-    if (document.getElementById(id)) return;
-
-    const style = document.createElement("style");
-    style.id = id;
-    style.textContent = `
-      .animate-ui-cursor-none, .animate-ui-cursor-none * { cursor: none !important; }
-    `;
-    document.head.appendChild(style);
+    // Keep native cursor visible and active
   }, []);
 
   React.useEffect(() => {
@@ -209,10 +201,11 @@ function Cursor({ ref, asChild = false, style, ...props }: CursorProps) {
           style={{
             transform: "translate(-50%,-50%)",
             pointerEvents: "none",
-            zIndex: 9999,
+            zIndex: 99999,
             position: global ? "fixed" : "absolute",
             top: y,
             left: x,
+            mixBlendMode: "difference",
             ...style,
           }}
           initial={{ scale: 0, opacity: 0 }}

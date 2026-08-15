@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { Logo } from '@/components/ui/logo';
 import { PortalHeader } from '@/features/landing/components/PortalHeader';
 import { HeroSection } from '@/features/landing/components/HeroSection';
 import { AppEcosystem } from '@/features/landing/components/AppEcosystem';
@@ -453,11 +454,8 @@ export default function LandingPage() {
       <footer className="border-t border-border/30 bg-secondary/15 py-16 relative z-10">
         <div className="mx-auto max-w-7xl px-6 grid gap-12 sm:grid-cols-2 md:grid-cols-5 lg:grid-cols-6">
           <div className="md:col-span-2 flex flex-col text-left">
-            <Link href="/" className="font-heading text-xl font-bold tracking-tight flex items-center gap-2 select-none group mb-4">
-              <svg className="size-6 text-foreground fill-current transition-transform duration-500 group-hover:rotate-12" viewBox="0 0 24 24">
-                <path d="M8 15a3.5 3.5 0 1 1 3.5 3.5c-1.93 0-3.5-1.57-3.5-3.5zm7.5-6a5 5 0 1 1 5 5c-2.76 0-5-2.24-5-5z" />
-              </svg>
-              <span className="font-black text-2xl tracking-tighter">OID</span>
+            <Link href="/" className="select-none mb-4 inline-flex items-center">
+              <Logo size={48} />
             </Link>
             <p className="text-xs text-muted-foreground leading-relaxed max-w-xs mb-6">
               A self-hosted OpenID Connect provider for modern applications. Own your identity data.

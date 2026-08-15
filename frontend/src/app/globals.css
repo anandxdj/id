@@ -229,6 +229,15 @@
   text-transform: uppercase;
 }
 
+/* utility to hide ugly scrollbars while preserving scrolling capability */
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @layer base {
   * {
     @apply border-border;

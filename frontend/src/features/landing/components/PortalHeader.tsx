@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { Logo } from '@/components/ui/logo';
 
 interface PortalHeaderProps {
   mode: 'user' | 'dev';
@@ -18,11 +19,8 @@ export function PortalHeader({ mode, onModeChange }: PortalHeaderProps) {
     <header className="sticky top-0 z-50 border-b border-border/30 bg-background/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
         {/* Brand Logo */}
-        <Link href="/" className="font-heading text-xl font-bold tracking-tight flex items-center gap-2 select-none group">
-          <svg className="size-6 text-foreground fill-current transition-transform duration-500 group-hover:rotate-12" viewBox="0 0 24 24">
-            <path d="M8 15a3.5 3.5 0 1 1 3.5 3.5c-1.93 0-3.5-1.57-3.5-3.5zm7.5-6a5 5 0 1 1 5 5c-2.76 0-5-2.24-5-5z" />
-          </svg>
-          <span className="font-black text-2xl tracking-tighter">OID</span>
+        <Link href="/" className="select-none flex items-center">
+          <Logo size={48} />
         </Link>
         
         {/* Central Mockup Navigation Links */}

@@ -63,6 +63,11 @@ export const AdminApi = {
     description?: string;
     logoUrl?: string;
     stack?: string;
+    scopes?: string[];
+    grantTypes?: string[];
+    responseTypes?: string[];
+    tokenEndpointAuthMethod?: 'client_secret_basic' | 'client_secret_post' | 'none';
+    postLogoutRedirectUris?: string[];
   }) {
     return (await apiClient.post<ApiEnvelope<CreatedClient>>(API_PATHS.ADMIN_CLIENTS, input)).data;
   },

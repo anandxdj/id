@@ -5,18 +5,41 @@ import * as adminApi from '@/features/admin/services/adminApi';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-const STACKS = [
-  { id: 'nextjs', label: 'Next.js' },
-  { id: 'express', label: 'Express' },
-  { id: 'python', label: 'Python' },
-];
+const STACKS = {
+  web: [
+    { id: 'nextjs', label: 'Next.js' },
+    { id: 'express', label: 'Express' },
+    { id: 'python', label: 'Python' },
+  ],
+  spa: [
+    { id: 'react', label: 'React' },
+    { id: 'vue', label: 'Vue' },
+    { id: 'angular', label: 'Angular' },
+  ],
+  native: [
+    { id: 'react-native', label: 'React Native' },
+    { id: 'flutter', label: 'Flutter' },
+    { id: 'ios', label: 'iOS' },
+    { id: 'android', label: 'Android' },
+  ],
+} as const;
 
 /**
  * Shows the LLM config-prompt for a client with a stack selector. Re-fetches per
  * stack from the backend so the wiring guidance matches. Secret stays a placeholder.
  */
-export function ConfigPromptBlock({ clientId, initialPrompt }: { clientId: string; initialPrompt: string }) {
-  const [stack, setStack] = useState('nextjs');
+export function ConfigPromptBlock({
+  clientId,
+  initialPrompt,
+  initialStack = 'nextjs',
+  appType = 'web',
+}: {
+  clientId: string;
+  initialPrompt: string;
+  initialStack?: string;
+  appType?: keyof typeof STACKS;
+}) {
+  const [stack, setStack] = useState(initialStack);
   const [prompt, setPrompt] = useState(initialPrompt);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -42,7 +65,7 @@ export function ConfigPromptBlock({ clientId, initialPrompt }: { clientId: strin
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex gap-1">
-          {STACKS.map((s) => (
+          {STACKS[appType].map((s) => (
             <button
               key={s.id}
               onClick={() => pick(s.id)}
@@ -61,7 +84,7 @@ export function ConfigPromptBlock({ clientId, initialPrompt }: { clientId: strin
           {copied ? 'Copied' : 'Copy prompt'}
         </Button>
       </div>
-      <pre className={cn('max-h-96 overflow-auto border-2 border-border bg-card p-4 font-mono text-xs leading-relaxed text-foreground shadow-brutal-sm', loading && 'opacity-50')}>
+      <pre className={cn('max-h-96 overflow-auto rounded-xl border border-border bg-card p-4 font-mono text-xs leading-relaxed text-foreground shadow-brutal-sm', loading && 'opacity-50')}>
         {prompt}
       </pre>
       <p className="font-mono text-xs text-muted-foreground">
