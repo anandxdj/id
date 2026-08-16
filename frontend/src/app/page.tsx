@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Terminal, X } from 'lucide-react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
@@ -24,6 +24,27 @@ export default function LandingPage() {
   const [showFullEcosystem, setShowFullEcosystem] = useState(false);
   const [activeConsoleCard, setActiveConsoleCard] = useState<string | null>(null);
 
+  // Sync mode with localStorage across sessions
+  useEffect(() => {
+    try {
+      const savedMode = localStorage.getItem('oid_landing_mode');
+      if (savedMode === 'user' || savedMode === 'dev') {
+        setMode(savedMode);
+      }
+    } catch {
+      // Ignore localStorage access errors if restricted
+    }
+  }, []);
+
+  const handleModeChange = (nextMode: 'user' | 'dev') => {
+    setMode(nextMode);
+    try {
+      localStorage.setItem('oid_landing_mode', nextMode);
+    } catch {
+      // Ignore localStorage write errors
+    }
+  };
+
   const handleConsoleCard = (id: string) => {
     if (id === 'dashboard') {
       setShowFullEcosystem(true);
@@ -46,10 +67,10 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen overflow-x-clip bg-background text-foreground transition-colors duration-300">
-      <PortalHeader mode={mode} onModeChange={setMode} />
+      <PortalHeader mode={mode} onModeChange={handleModeChange} />
 
-      <main className="relative z-10 space-y-2 pb-4 sm:space-y-3">
-        <FigmaHero primaryHref={user ? '/account' : '/login'} />
+      <main className="relative z-10 space-y-3 sm:space-y-4 md:space-y-5 pb-6 sm:pb-8">
+        <FigmaHero mode={mode} primaryHref={user ? '/account' : '/login'} />
 
         <div id="features">
           <CorePillarsOrganic />

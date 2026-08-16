@@ -75,7 +75,7 @@ export function FooterOrganic({ className = '' }: FooterOrganicProps) {
   ];
 
   return (
-    <footer className={`relative mx-auto max-w-[1600px] px-4 sm:px-8 py-0 select-none ${className}`}>
+    <footer className={`relative mx-auto max-w-[1600px] px-4 sm:px-8 py-1 sm:py-2 select-none ${className}`}>
       {/* Dark Organic Blob Island Container */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
