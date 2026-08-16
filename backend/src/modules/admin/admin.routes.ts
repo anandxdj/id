@@ -31,11 +31,13 @@ router.get('/activity', Validate.query(activityQuerySchema), asyncHandler(contro
 
 // OAuth clients
 router.get('/clients', asyncHandler(controller.listClients));
+router.get('/clients/:clientId', clientId, asyncHandler(controller.getClient));
 router.post('/clients', validate(createClientSchema), asyncHandler(controller.createClient));
 router.patch('/clients/:clientId', clientId, validate(updateClientSchema), asyncHandler(controller.updateClient));
 router.post('/clients/:clientId/rotate-secret', clientId, asyncHandler(controller.rotateSecret));
 router.post('/clients/:clientId/suspend', clientId, validate(suspendUserSchema), asyncHandler(controller.suspendClient));
 router.post('/clients/:clientId/unsuspend', clientId, asyncHandler(controller.unsuspendClient));
+router.delete('/clients/:clientId', clientId, asyncHandler(controller.deleteClient));
 router.get('/clients/:clientId/config-prompt', clientId, asyncHandler(controller.configPrompt));
 
 export default router;

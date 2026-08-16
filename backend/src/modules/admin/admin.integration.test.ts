@@ -301,6 +301,46 @@ test('getUser returns sessions, apps, and activity; metrics report totals', asyn
   assert.ok(typeof metrics.data.totalClients === 'number');
 });
 
+test('getClient returns client details, user metrics, and config prompt', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+  const detail = await jsonOf<{
+    data: {
+      client: { clientId: string; clientName: string };
+      metrics: { totalAuthorizedUsers: number; activeUsers24h: number; activeUsers7d: number };
+      authorizedUsers: unknown[];
+      activity: unknown[];
+      configPrompt: string;
+    };
+  }>(await as(adminToken)(`/api/admin/clients/${CLIENT.clientId}`));
+
+  assert.equal(detail.data.client.clientId, CLIENT.clientId);
+  assert.equal(detail.data.client.clientName, CLIENT.clientName);
+  assert.ok(typeof detail.data.metrics.totalAuthorizedUsers === 'number');
+  assert.ok(typeof detail.data.metrics.activeUsers24h === 'number');
+  assert.ok(typeof detail.data.metrics.activeUsers7d === 'number');
+  assert.ok(Array.isArray(detail.data.authorizedUsers));
+  assert.ok(Array.isArray(detail.data.activity));
+  assert.ok(detail.data.configPrompt.length > 0);
+});
+
+test('deleteClient removes client and cascades consents and tokens', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+  const { OAuthClient } = await import('../oauth-client/oauth-client.model');
+  const tempClient = await OAuthClient.create({
+    clientId: 'cl_temporary_delete_test',
+    clientName: 'Temp Delete App',
+    redirectUris: ['http://localhost:3000/callback'],
+  });
+
+  const res = await as(adminToken)(`/api/admin/clients/${tempClient.clientId}`, {
+    method: 'DELETE',
+  });
+  assert.equal(res.status, 200);
+
+  const lookup = await OAuthClient.findOne({ clientId: tempClient.clientId });
+  assert.equal(lookup, null);
+});
+
 test('a garbage user id is a 400, not a CastError 500', async (t) => {
   if (!available) return t.skip('Mongo/Redis not reachable');
   assert.equal((await as(adminToken)('/api/admin/users/not-an-objectid')).status, 400);

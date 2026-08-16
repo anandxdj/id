@@ -508,14 +508,14 @@ export function AuthFlowVisualizer() {
                 {/* Syntax Highlighted JWT Inspector */}
                 <div className="p-3 rounded-xl bg-black/70 font-mono text-[11px] leading-relaxed border border-zinc-800/80 overflow-x-auto max-h-[160px] scrollbar-thin">
                   <div className="text-zinc-500 mb-1 text-[10px]">
-                    // 1. Header (Algorithm & Key ID)
+                    {`// 1. Header (Algorithm & Key ID)`}
                   </div>
                   <div className="text-rose-400">
                     &#123;&quot;alg&quot;: &quot;RS256&quot;, &quot;typ&quot;: &quot;JWT&quot;, &quot;kid&quot;: &quot;oid-key-2026&quot;&#125;
                   </div>
 
                   <div className="text-zinc-500 my-1 text-[10px]">
-                    // 2. Payload (Claims)
+                    {`// 2. Payload (Claims)`}
                   </div>
                   <div className="text-emerald-400 space-y-0.5">
                     <div>&#123;</div>
@@ -555,7 +555,7 @@ export function AuthFlowVisualizer() {
                   </div>
 
                   <div className="text-zinc-500 mt-2 mb-1 text-[10px]">
-                    // 3. Verified Cryptographic Signature
+                    {`// 3. Verified Cryptographic Signature`}
                   </div>
                   <div className="text-cyan-400 text-[10.5px]">
                     RSASHA256(Base64Url(Header) + &quot;.&quot; + Base64Url(Payload), PublicKey) <span className="text-emerald-400 font-bold">[VERIFIED ✓]</span>

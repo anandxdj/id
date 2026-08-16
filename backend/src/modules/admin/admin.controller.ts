@@ -77,6 +77,12 @@ export const listClients = async (_req: Request, res: Response) => {
   ApiResponse.ok(res, 'Clients', await adminService.listClients());
 };
 
+export const getClient = async (req: Request, res: Response) => {
+  const data = await adminService.getClient(req.params.clientId!);
+  ApiResponse.ok(res, 'Client detail', data);
+};
+
+
 export const createClient = async (req: Request, res: Response) => {
   const data = await adminService.createClient(req.body, adminCtx(req));
   ApiResponse.created(res, 'Client created', data);
@@ -100,6 +106,11 @@ export const suspendClient = async (req: Request, res: Response) => {
 export const unsuspendClient = async (req: Request, res: Response) => {
   const data = await adminService.setClientSuspended(req.params.clientId!, false, undefined, adminCtx(req));
   ApiResponse.ok(res, 'Client reinstated', data);
+};
+
+export const deleteClient = async (req: Request, res: Response) => {
+  const data = await adminService.deleteClient(req.params.clientId!, adminCtx(req));
+  ApiResponse.ok(res, 'Client deleted', data);
 };
 
 export const configPrompt = async (req: Request, res: Response) => {
