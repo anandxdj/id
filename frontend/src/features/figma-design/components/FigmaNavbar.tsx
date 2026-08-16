@@ -28,11 +28,11 @@ export function FigmaNavbar({ primaryHref = '/login' }: FigmaNavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="@container sticky top-0 z-50 select-none bg-black/95 backdrop-blur-md transition-colors duration-200 lg:aspect-[941/51]">
+    <header className="@container sticky top-0 z-50 select-none bg-background/95 backdrop-blur-md transition-colors duration-200 lg:aspect-[941/51]">
       {/* < lg: ordinary flex bar */}
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3.5 sm:px-10 sm:py-4 lg:hidden">
         <Link href="/" className="flex shrink-0 cursor-pointer items-center">
-          <Logo size={40} wordmark wordmarkClassName="text-xl text-white" />
+          <Logo size={40} wordmark wordmarkClassName="text-xl text-foreground" />
         </Link>
 
         <nav className="hidden items-center justify-center gap-8 md:flex lg:gap-10">
@@ -40,7 +40,7 @@ export function FigmaNavbar({ primaryHref = '/login' }: FigmaNavbarProps) {
             <a
               key={link.label}
               href={link.href}
-              className="font-sans text-xs font-medium text-zinc-400 transition-colors duration-200 hover:text-white sm:text-[13px]"
+              className="font-sans text-xs font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground sm:text-[13px]"
             >
               {link.label}
             </a>
@@ -53,14 +53,14 @@ export function FigmaNavbar({ primaryHref = '/login' }: FigmaNavbarProps) {
             aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((open) => !open)}
-            className="flex size-9 items-center justify-center rounded-full border border-white/15 text-white md:hidden"
+            className="flex size-9 items-center justify-center rounded-full border border-border text-foreground md:hidden"
           >
             {menuOpen ? <X className="size-4" /> : <Menu className="size-4" />}
           </button>
           <Link href={primaryHref}>
-            <span className="inline-flex cursor-pointer items-center gap-2.5 rounded-full bg-white px-4.5 py-1.5 text-xs font-semibold text-black shadow-sm transition-all duration-150 hover:scale-105 hover:bg-zinc-100 active:scale-95 sm:text-[13px]">
+            <span className="inline-flex cursor-pointer items-center gap-2.5 rounded-full bg-foreground px-4.5 py-1.5 text-xs font-semibold text-background shadow-sm transition-all duration-150 hover:scale-105 hover:opacity-90 active:scale-95 sm:text-[13px]">
               <span>Get Started</span>
-              <span className="flex size-5 items-center justify-center rounded-full bg-black text-white">
+              <span className="flex size-5 items-center justify-center rounded-full bg-background text-foreground">
                 <ArrowUpRight className="size-3" />
               </span>
             </span>
@@ -69,14 +69,14 @@ export function FigmaNavbar({ primaryHref = '/login' }: FigmaNavbarProps) {
       </div>
 
       {menuOpen ? (
-        <nav className="border-t border-white/10 px-6 py-4 md:hidden">
+        <nav className="border-t border-border px-6 py-4 md:hidden">
           <div className="mx-auto flex max-w-7xl flex-col gap-3">
             {NAV_LINKS.map((link) => (
               <a
                 key={link.label}
                 href={link.href}
                 onClick={() => setMenuOpen(false)}
-                className="text-sm font-medium text-zinc-300 transition-colors hover:text-white"
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
                 {link.label}
               </a>
@@ -95,7 +95,7 @@ export function FigmaNavbar({ primaryHref = '/login' }: FigmaNavbarProps) {
             size={40}
             markClassName="size-[3.114cqw]"
             wordmark
-            wordmarkClassName="text-[2.39cqw] text-white"
+            wordmarkClassName="text-[2.39cqw] text-foreground"
           />
         </Link>
 
@@ -104,7 +104,7 @@ export function FigmaNavbar({ primaryHref = '/login' }: FigmaNavbarProps) {
             <a
               key={link.label}
               href={link.href}
-              className="font-sans text-[1.063cqw] font-medium leading-none text-zinc-400 transition-colors duration-200 hover:text-white"
+              className="font-sans text-[1.063cqw] font-medium leading-none text-muted-foreground transition-colors duration-200 hover:text-foreground"
             >
               {link.label}
             </a>
@@ -117,10 +117,10 @@ export function FigmaNavbar({ primaryHref = '/login' }: FigmaNavbarProps) {
         >
           <button
             type="button"
-            className="relative flex h-[3.879cqw] w-full cursor-pointer items-center rounded-full bg-[#F3F3F2] text-[0.935cqw] font-semibold leading-none text-black shadow-sm transition-all duration-150 hover:bg-white active:scale-95"
+            className="relative flex h-[3.879cqw] w-full cursor-pointer items-center rounded-full bg-foreground text-[0.935cqw] font-semibold leading-none text-background shadow-sm transition-all duration-150 hover:opacity-90 active:scale-95"
           >
             <span className="pl-[1.913cqw]">Get Started</span>
-            <span className="absolute left-[71.19%] flex size-[2.858cqw] items-center justify-center rounded-full bg-black text-white">
+            <span className="absolute left-[71.19%] flex size-[2.858cqw] items-center justify-center rounded-full bg-background text-foreground">
               <ArrowUpRight className="size-[1.5cqw]" />
             </span>
           </button>
