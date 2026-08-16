@@ -40,14 +40,14 @@ export function AmbientFluidBackground({
     <div
       ref={containerRef}
       onPointerMove={handlePointerMove}
-      className={`pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-black ${className}`}
+      className={`pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-background transition-colors duration-300 ${className}`}
     >
       {/* Subtle radial dot backdrop */}
       <div
         aria-hidden
-        className="absolute inset-0 opacity-[0.08]"
+        className="absolute inset-0 opacity-[0.05] dark:opacity-[0.08] text-foreground"
         style={{
-          backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)',
+          backgroundImage: 'radial-gradient(circle, currentColor 1px, transparent 1px)',
           backgroundSize: '32px 32px',
         }}
       />
@@ -57,7 +57,7 @@ export function AmbientFluidBackground({
         {/* Mouse Attractor Fluid Blob */}
         {interactive && (
           <motion.div
-            className="absolute rounded-full bg-zinc-400"
+            className="absolute rounded-full bg-zinc-300 dark:bg-zinc-400"
             style={{
               x: smoothX,
               y: smoothY,
@@ -79,7 +79,7 @@ export function AmbientFluidBackground({
 
         {/* Top-Left Ambient Orb */}
         <motion.div
-          className="absolute -top-24 -left-24 size-[480px] rounded-full bg-zinc-500"
+          className="absolute -top-24 -left-24 size-[480px] rounded-full bg-zinc-200 dark:bg-zinc-500"
           animate={{
             x: [0, 60, -40, 0],
             y: [0, 40, -30, 0],
@@ -90,7 +90,7 @@ export function AmbientFluidBackground({
 
         {/* Top-Right Ambient Orb */}
         <motion.div
-          className="absolute -top-12 -right-12 size-[420px] rounded-full bg-zinc-600"
+          className="absolute -top-12 -right-12 size-[420px] rounded-full bg-zinc-300 dark:bg-zinc-600"
           animate={{
             x: [0, -50, 30, 0],
             y: [0, 60, -40, 0],
@@ -101,7 +101,7 @@ export function AmbientFluidBackground({
 
         {/* Center-Right Ambient Orb */}
         <motion.div
-          className="absolute top-1/2 -right-32 size-[520px] rounded-full bg-zinc-700"
+          className="absolute top-1/2 -right-32 size-[520px] rounded-full bg-zinc-200 dark:bg-zinc-700"
           animate={{
             x: [0, -60, 40, 0],
             y: [0, -50, 30, 0],
@@ -111,7 +111,7 @@ export function AmbientFluidBackground({
 
         {/* Bottom-Left Ambient Orb */}
         <motion.div
-          className="absolute -bottom-32 -left-32 size-[460px] rounded-full bg-zinc-600"
+          className="absolute -bottom-32 -left-32 size-[460px] rounded-full bg-zinc-300 dark:bg-zinc-600"
           animate={{
             x: [0, 70, -30, 0],
             y: [0, -40, 50, 0],

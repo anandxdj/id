@@ -5,3 +5,6 @@ export { GooeyButton } from './GooeyButton';
 export { FluidTokenPipeline } from './FluidTokenPipeline';
 export { GooeyStatusBadge } from './GooeyStatusBadge';
 export { GooeyCard } from './GooeyCard';
+export { LivingCursor } from './LivingCursor';
+export { MagneticButton } from './MagneticButton';
+export { TiltCard } from './TiltCard';
