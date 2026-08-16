@@ -16,19 +16,10 @@ export function OrganicNavbar({ mode, onModeChange, onCtaClick }: OrganicNavbarP
   const { user, logout } = useAuth();
   const [internalMode, setInternalMode] = useState<'user' | 'dev'>('user');
   const currentMode = mode ?? internalMode;
-
   const handleModeToggle = (nextMode: 'user' | 'dev') => {
     setInternalMode(nextMode);
     onModeChange?.(nextMode);
   };
-
-  const navLinks = [
-    { label: 'FEATURES', href: '#features' },
-    { label: 'SECURITY', href: '#security' },
-    { label: 'DOCS', href: '#docs' },
-    { label: 'PRICING', href: '#pricing' },
-    { label: 'BLOG', href: '#blog' },
-  ];
 
   // User display initials (defaults to 'DJ' matching mockup if no user name)
   const displayName = user?.name || 'DJ';
@@ -48,19 +39,6 @@ export function OrganicNavbar({ mode, onModeChange, onCtaClick }: OrganicNavbarP
         <Link href="/" className="flex items-center shrink-0 cursor-pointer">
           <Logo size={42} />
         </Link>
-
-        {/* Central Mockup Navigation Links */}
-        <nav className="hidden md:flex items-center justify-center gap-8 lg:gap-10">
-          {navLinks.map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              className="text-xs font-heading font-semibold uppercase tracking-wider text-zinc-400 hover:text-white transition-colors duration-200"
-            >
-              {link.label}
-            </a>
-          ))}
-        </nav>
 
         {/* Action Controls & Mode Switcher */}
         <div className="flex items-center gap-3 sm:gap-4">

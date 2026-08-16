@@ -3,6 +3,7 @@ import { Inter, Roboto_Mono } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/ui/theme-provider';
 import { AuthProvider } from '@/features/auth/context/AuthContext';
+import { LivingCursor } from '@/components/ui/gooey';
 
 const inter = Inter({ variable: '--font-inter', subsets: ['latin'] });
 const robotoMono = Roboto_Mono({ variable: '--font-roboto-mono', subsets: ['latin'] });
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <AuthProvider>
             {children}
+            <LivingCursor />
             <GooeyFilterProvider />
           </AuthProvider>
         </ThemeProvider>

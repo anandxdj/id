@@ -66,41 +66,41 @@ export function AuthFlowTerminal() {
   };
 
   return (
-    <div id="flow" className="flex h-[420px] flex-col border border-border/50 bg-[#0B0F19] font-mono shadow-md rounded-xl overflow-hidden">
+    <div id="flow" className="flex h-[420px] flex-col border border-border bg-card dark:bg-[#0B0F19] font-mono shadow-md rounded-xl overflow-hidden transition-colors duration-300">
       {/* Title bar */}
-      <div className="flex items-center justify-between border-b border-border/40 bg-[#161D30] px-4 py-2.5">
+      <div className="flex items-center justify-between border-b border-border bg-muted/70 dark:bg-[#161D30] px-4 py-2.5">
         <div className="flex items-center gap-2">
           <span className="flex gap-1.5 select-none">
             <span className="size-2.5 rounded-full bg-rose-500" />
             <span className="size-2.5 rounded-full bg-amber-500" />
             <span className="size-2.5 rounded-full bg-emerald-500" />
           </span>
-          <span className="eyebrow text-slate-400 font-bold text-[10px] select-none">[ OIDC_HANDSHAKE.log ]</span>
+          <span className="eyebrow text-muted-foreground dark:text-slate-400 font-bold text-[10px] select-none">[ OIDC_HANDSHAKE.log ]</span>
         </div>
-        <span className="eyebrow hidden text-slate-400 sm:inline text-[9px] select-none">
+        <span className="eyebrow hidden text-muted-foreground dark:text-slate-400 sm:inline text-[9px] select-none">
           RS256 · PKCE · S256
         </span>
       </div>
 
       {/* Log streams */}
-      <div className="flex-1 space-y-2.5 overflow-y-auto p-4 text-[11px] leading-relaxed scrollbar-thin scrollbar-thumb-slate-700">
+      <div className="flex-1 space-y-2.5 overflow-y-auto p-4 text-[11px] leading-relaxed scrollbar-thin scrollbar-thumb-zinc-400 dark:scrollbar-thumb-slate-700">
         {lines.length === 0 ? (
-          <div className="flex items-center gap-2 text-slate-500">
+          <div className="flex items-center gap-2 text-muted-foreground dark:text-slate-500">
             <Terminal className="size-3.5 animate-pulse text-brand" /> awaiting OIDC request…
           </div>
         ) : (
           lines.map((l, idx) => (
             <div key={idx} className="flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-1 duration-200">
-              <span className="shrink-0 select-none text-slate-500">[{l.t}]</span>
+              <span className="shrink-0 select-none text-muted-foreground dark:text-slate-500">[{l.t}]</span>
               <span className={`shrink-0 select-none border px-2 py-0.5 text-[8.5px] font-semibold uppercase tracking-wider rounded-md ${SRC_COLORS[l.src]}`}>
                 {l.src}
               </span>
-              <span className="flex-1 break-all text-slate-200">{l.text}</span>
+              <span className="flex-1 break-all text-foreground dark:text-slate-200">{l.text}</span>
             </div>
           ))
         )}
         {running && (
-          <div className="flex items-center gap-2 text-slate-500 pl-16">
+          <div className="flex items-center gap-2 text-muted-foreground dark:text-slate-500 pl-16">
             <span className="inline-block size-2 animate-pulse bg-brand" />
             <span className="text-[10px] italic">Processing token claims…</span>
           </div>
@@ -109,16 +109,16 @@ export function AuthFlowTerminal() {
       </div>
 
       {/* Terminal Footer Controls */}
-      <div className="flex items-center justify-between border-t border-border/40 bg-[#161D30] px-4 py-2.5">
+      <div className="flex items-center justify-between border-t border-border bg-muted/70 dark:bg-[#161D30] px-4 py-2.5">
         <button
           onClick={replayFlow}
           disabled={running}
-          className="inline-flex items-center gap-2 border border-transparent bg-brand px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-brand-foreground shadow-sm rounded-lg transition-all hover:opacity-95 active:scale-95 disabled:opacity-40 disabled:active:scale-100 cursor-pointer"
+          className="inline-flex items-center gap-2 border border-transparent bg-foreground text-background px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide shadow-sm rounded-lg transition-all hover:opacity-95 active:scale-95 disabled:opacity-40 disabled:active:scale-100 cursor-pointer"
         >
           <RefreshCw className={`size-3.5 ${running ? 'animate-spin' : ''}`} />
           Replay Handshake
         </button>
-        <span className="eyebrow text-slate-400 text-[10px] select-none flex items-center gap-1.5">
+        <span className="eyebrow text-muted-foreground dark:text-slate-400 text-[10px] select-none flex items-center gap-1.5">
           {lines.length === LOG.length && <CheckCircle2 className="size-3.5 text-brand" />}
           <span>
             {lines.length}/{LOG.length} LOGS

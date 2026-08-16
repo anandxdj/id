@@ -2,7 +2,9 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { ArrowUpRight, MessageSquare, Mail, Terminal } from 'lucide-react';
+import { MagneticButton } from '@/components/ui/gooey';
 
 function GithubIcon({ className = 'size-4' }: { className?: string }) {
   return (
@@ -16,7 +18,11 @@ function GithubIcon({ className = 'size-4' }: { className?: string }) {
   );
 }
 
-export function FooterOrganic() {
+interface FooterOrganicProps {
+  className?: string;
+}
+
+export function FooterOrganic({ className = '' }: FooterOrganicProps) {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
 
@@ -69,75 +75,82 @@ export function FooterOrganic() {
   ];
 
   return (
-    <footer className="relative z-10 bg-black text-zinc-400 select-none pt-4">
-      <div className="mx-auto max-w-[1400px] px-6 sm:px-10 py-6 md:py-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-8">
-          {/* Column 1: Brand & Socials (3.5 cols) */}
-          <div className="lg:col-span-3 space-y-4">
-            <Link href="/" className="flex items-center gap-3 group">
-              <div className="flex items-center gap-1">
-                <div className="size-6 rounded-full bg-white flex items-center justify-center shadow-sm">
-                  <div className="size-2 rounded-full bg-black" />
+    <footer className={`relative mx-auto max-w-[1600px] px-4 sm:px-8 py-0 select-none ${className}`}>
+      {/* Dark Organic Blob Island Container */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '-40px' }}
+        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+        className="relative w-full aspect-[870/132] min-h-[240px] md:min-h-[260px] lg:min-h-[280px] flex flex-col justify-between p-5 sm:p-7 md:p-8 lg:px-12 lg:py-6 select-none"
+      >
+        {/* Background SVG */}
+        <img
+          src="/landing_components/foother.svg"
+          alt=""
+          className="absolute inset-0 w-full h-full object-fill pointer-events-none z-0 scale-[1.01] animate-island-breathe filter invert dark:filter-none drop-shadow-sm transition-[filter] duration-300"
+          aria-hidden="true"
+        />
+
+        {/* Inner Content Layer */}
+        <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-6 items-start w-full">
+          {/* Column 1: Brand & Socials */}
+          <div className="lg:col-span-3 space-y-3">
+            <Link href="/" className="flex items-center gap-2.5 group w-fit">
+              <div className="flex items-center gap-1 transition-transform duration-200 group-hover:scale-110">
+                <div className="size-5 sm:size-6 rounded-full bg-zinc-950 dark:bg-white flex items-center justify-center shadow-xs">
+                  <div className="size-2 rounded-full bg-white dark:bg-black" />
                 </div>
-                <div className="size-3.5 rounded-full bg-white" />
+                <div className="size-3 sm:size-3.5 rounded-full bg-zinc-950 dark:bg-white" />
               </div>
-              <span className="font-heading font-black text-2xl tracking-tight text-white">
+              <span className="font-heading font-black text-xl sm:text-2xl tracking-tight text-zinc-950 dark:text-white">
                 OID
               </span>
             </Link>
 
-            <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
+            <p className="text-[11px] sm:text-xs text-zinc-600 dark:text-zinc-400 max-w-xs leading-relaxed">
               A self-hosted OpenID Connect provider for modern applications.
             </p>
 
-            {/* Social Icons */}
-            <div className="flex items-center gap-2.5 pt-1">
-              <a
-                href="https://github.com"
-                target="_blank"
-                rel="noreferrer"
-                aria-label="GitHub"
-                className="size-7 rounded-full bg-zinc-950 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors"
-              >
-                <GithubIcon className="size-3.5" />
-              </a>
-              <a
-                href="#discord"
-                aria-label="Discord"
-                className="size-7 rounded-full bg-zinc-950 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors"
-              >
-                <MessageSquare className="size-3.5" />
-              </a>
-              <a
-                href="#terminal"
-                aria-label="Terminal"
-                className="size-7 rounded-full bg-zinc-950 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors"
-              >
-                <Terminal className="size-3.5" />
-              </a>
-              <a
-                href="#email"
-                aria-label="Email"
-                className="size-7 rounded-full bg-zinc-950 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors"
-              >
-                <Mail className="size-3.5" />
-              </a>
+            {/* Social Icons with Magnetic Hover */}
+            <div className="flex items-center gap-2 pt-1">
+              {[
+                { href: 'https://github.com', icon: GithubIcon, label: 'GitHub' },
+                { href: '#discord', icon: MessageSquare, label: 'Discord' },
+                { href: '#terminal', icon: Terminal, label: 'Terminal' },
+                { href: '#email', icon: Mail, label: 'Email' },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <MagneticButton key={item.label} strength={0.3}>
+                    <a
+                      href={item.href}
+                      target={item.href.startsWith('http') ? '_blank' : undefined}
+                      rel="noreferrer"
+                      aria-label={item.label}
+                      className="size-7 rounded-full bg-black/5 border border-black/10 text-zinc-700 hover:text-black hover:bg-black/10 dark:bg-[#232324] dark:border-white/5 dark:text-zinc-400 dark:hover:text-white dark:hover:border-white/20 dark:hover:bg-zinc-800 flex items-center justify-center transition-colors"
+                    >
+                      <Icon className="size-3.5" />
+                    </a>
+                  </MagneticButton>
+                );
+              })}
             </div>
           </div>
 
-          {/* Column 2: Navigation Links (5.5 cols) */}
-          <div className="lg:col-span-5 grid grid-cols-2 sm:grid-cols-4 gap-6">
+          {/* Column 2: Navigation Links */}
+          <div className="lg:col-span-5 grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
             {FOOTER_COLUMNS.map((col) => (
-              <div key={col.title} className="space-y-3">
-                <h5 className="font-heading font-bold text-xs text-white">
+              <div key={col.title} className="space-y-2">
+                <h5 className="font-heading font-bold text-xs text-zinc-950 dark:text-white">
                   {col.title}
                 </h5>
-                <ul className="space-y-2 text-[11px]">
+                <ul className="space-y-1.5 text-[11px]">
                   {col.links.map((link) => (
                     <li key={link.label}>
                       <Link
                         href={link.href}
-                        className="text-zinc-400 hover:text-white transition-colors duration-150"
+                        className="text-zinc-600 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white transition-colors duration-150 inline-block hover:translate-x-0.5 transform"
                       >
                         {link.label}
                       </Link>
@@ -148,30 +161,30 @@ export function FooterOrganic() {
             ))}
           </div>
 
-          {/* Column 3: Newsletter (3.5 cols) */}
-          <div className="lg:col-span-4 space-y-3">
-            <h5 className="font-heading font-bold text-xs sm:text-sm text-white">Stay in the loop</h5>
-            <p className="text-[11px] text-zinc-400 leading-snug">Get updates on new features and releases.</p>
+          {/* Column 3: Newsletter */}
+          <div className="lg:col-span-4 rounded-2xl bg-black/5 border border-black/10 dark:bg-[#191919] dark:border-white/5 p-4 sm:p-5 space-y-2">
+            <h5 className="font-heading font-bold text-xs sm:text-sm text-zinc-950 dark:text-white">Stay in the loop</h5>
+            <p className="text-[10.5px] sm:text-[11px] text-zinc-600 dark:text-zinc-400 leading-snug">Get updates on new features and releases.</p>
 
-            <form onSubmit={handleSubscribe} className="relative flex items-center mt-3">
+            <form onSubmit={handleSubscribe} className="relative flex items-center mt-2.5">
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Your email"
-                className="w-full rounded-full bg-zinc-950 border border-zinc-800 px-4 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600 pr-12"
+                className="w-full rounded-full bg-white border border-zinc-300 px-3.5 py-2 text-xs text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500 dark:bg-[#0E0E0E] dark:border-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-600 pr-10"
               />
               <button
                 type="submit"
                 aria-label="Subscribe"
-                className="cursor-pointer absolute right-1.5 size-7 rounded-full bg-white text-zinc-950 flex items-center justify-center hover:bg-zinc-200 transition-colors shadow-sm"
+                className="cursor-pointer absolute right-1 size-6.5 rounded-full bg-zinc-950 text-white dark:bg-[#F3F3F2] dark:text-zinc-950 flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xs"
               >
                 <ArrowUpRight className="size-3.5" />
               </button>
             </form>
 
             {subscribed && (
-              <p className="text-[11px] text-emerald-400 font-medium animate-pulse">
+              <p className="text-[10.5px] text-emerald-500 dark:text-emerald-400 font-medium animate-pulse">
                 ✓ Thanks for subscribing!
               </p>
             )}
@@ -179,11 +192,10 @@ export function FooterOrganic() {
         </div>
 
         {/* Bottom Copyright */}
-        <div className="mt-12 pt-8 text-center text-[11px] text-zinc-600">
-          <p>© 2024 OID. All rights reserved.</p>
+        <div className="relative z-10 mt-4 text-center text-[10.5px] sm:text-[11px] text-zinc-600 dark:text-zinc-500">
+          <p>© 2026 OID. All rights reserved.</p>
         </div>
-      </div>
+      </motion.div>
     </footer>
   );
 }
-

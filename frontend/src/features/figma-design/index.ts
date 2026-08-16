@@ -8,5 +8,4 @@ export { FigmaSecurityPrivacy } from './components/FigmaSecurityPrivacy';
 export { FigmaTestimonials } from './components/FigmaTestimonials';
 export { FigmaCtaBanner } from './components/FigmaCtaBanner';
 export { FigmaFooter } from './components/FigmaFooter';
-export { FigmaClayLock } from './components/FigmaClayLock';
-export { FigmaClaySculpture } from './components/FigmaClaySculpture';
+export { FigmaLandingPage } from './components/FigmaLandingPage';

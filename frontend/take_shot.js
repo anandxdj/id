@@ -12,7 +12,7 @@ const res = spawnSync(chromePath, [
   '--window-size=1440,4600',
   `--screenshot=${outPath}`,
   '--virtual-time-budget=4000',
-  'http://localhost:3000/preview'
+  'http://localhost:3000/design'
 ]);
 
 console.log('Finished. Status:', res.status);

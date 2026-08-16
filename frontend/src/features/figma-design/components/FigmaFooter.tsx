@@ -17,7 +17,61 @@ function GithubIcon({ className = 'size-4' }: { className?: string }) {
   );
 }
 
-export function FigmaFooter() {
+const FOOTER_COLUMNS = [
+  {
+    title: 'Product',
+    links: [
+      { label: 'Features', href: '#features' },
+      { label: 'Security', href: '#security' },
+      { label: 'Pricing', href: '#pricing' },
+      { label: 'Changelog', href: '#blog' },
+      { label: 'Roadmap', href: '#pricing' },
+    ],
+  },
+  {
+    title: 'Resources',
+    links: [
+      { label: 'Documentation', href: '#docs' },
+      { label: 'Guides', href: '#docs' },
+      { label: 'API Reference', href: '#docs' },
+      { label: 'SDKs', href: '#docs' },
+      { label: 'Community', href: '#blog' },
+    ],
+  },
+  {
+    title: 'Company',
+    links: [
+      { label: 'About', href: '#features' },
+      { label: 'Blog', href: '#blog' },
+      { label: 'Careers', href: '#blog' },
+      { label: 'Contact', href: '#blog' },
+    ],
+  },
+  {
+    title: 'Legal',
+    links: [
+      { label: 'Privacy Policy', href: '#security' },
+      { label: 'Terms of Service', href: '#security' },
+      { label: 'Data Processing', href: '#security' },
+      { label: 'Security', href: '#security' },
+    ],
+  },
+];
+
+const SOCIALS = [
+  { href: 'https://github.com', label: 'GitHub', Icon: GithubIcon },
+  { href: '#discord', label: 'Discord', Icon: MessageSquare },
+  { href: '#terminal', label: 'Terminal', Icon: Terminal },
+  { href: '#email', label: 'Email', Icon: Mail },
+];
+
+/**
+ * Footer — Figma node 1:4543.
+ * Island bbox (47.0, 1553.0, 870.0 x 119.0) → foother.svg (870 x 132; the path
+ * runs 13px past the frame bottom and is clipped there, hence h-[110.9%]).
+ * Newsletter panel is a #191919 inset at (722.8, 1554.9, 162.8 x 107.1).
+ */
+export function FigmaFooter({ className = '' }: { className?: string }) {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
 
@@ -30,109 +84,66 @@ export function FigmaFooter() {
     }
   };
 
-  const FOOTER_COLUMNS = [
-    {
-      title: 'Product',
-      links: [
-        { label: 'Features', href: '#features' },
-        { label: 'Security', href: '#security' },
-        { label: 'Pricing', href: '#pricing' },
-        { label: 'Changelog', href: '#changelog' },
-        { label: 'Roadmap', href: '#roadmap' },
-      ],
-    },
-    {
-      title: 'Resources',
-      links: [
-        { label: 'Documentation', href: '#docs' },
-        { label: 'Guides', href: '#guides' },
-        { label: 'API Reference', href: '#api' },
-        { label: 'SDKs', href: '#sdks' },
-        { label: 'Community', href: '#community' },
-      ],
-    },
-    {
-      title: 'Company',
-      links: [
-        { label: 'About', href: '#about' },
-        { label: 'Blog', href: '#blog' },
-        { label: 'Careers', href: '#careers' },
-        { label: 'Contact', href: '#contact' },
-      ],
-    },
-    {
-      title: 'Legal',
-      links: [
-        { label: 'Privacy Policy', href: '#privacy' },
-        { label: 'Terms of Service', href: '#terms' },
-        { label: 'Data Processing', href: '#data' },
-        { label: 'Security', href: '#security' },
-      ],
-    },
-  ];
-
   return (
-    <footer className="relative z-10 bg-black text-zinc-400 select-none pt-4 pb-8">
-      <div className="mx-auto max-w-[1400px] px-6 sm:px-10 py-6 md:py-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-8">
-          {/* Column 1: Brand & Socials (3.5 cols) */}
-          <div className="lg:col-span-3 space-y-4">
-            <Link href="/" className="flex items-center shrink-0 cursor-pointer">
-              <Logo size={42} />
+    <footer
+      className={`relative z-10 w-full select-none px-4 py-6 sm:px-6 lg:aspect-[941/119] lg:overflow-hidden lg:px-0 lg:py-0 ${className}`}
+    >
+      <div className="@container relative w-full lg:absolute lg:left-[4.995%] lg:top-0 lg:h-[110.9%] lg:w-[92.455%]">
+        <img
+          src="/landing_components/foother.svg"
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-0 size-full object-fill filter invert dark:filter-none drop-shadow-sm transition-[filter] duration-300"
+        />
+
+        <div className="relative z-10 grid grid-cols-1 gap-8 px-6 py-8 md:grid-cols-2 lg:contents lg:gap-0 lg:px-0 lg:py-0">
+          {/* Brand column — x 74.9 .. 195.4 of the island */}
+          <div className="space-y-4 lg:absolute lg:left-[3.207cqw] lg:top-[5.97%] lg:w-[15cqw] lg:space-y-0">
+            <Link
+              href="/"
+              className="flex shrink-0 cursor-pointer items-center lg:gap-[0.6cqw]"
+            >
+              <Logo
+                size={42}
+                markClassName="size-[26px] lg:size-[3.37cqw]"
+                wordmark
+                wordmarkClassName="text-base text-zinc-950 dark:text-white lg:text-[1.93cqw]"
+              />
             </Link>
 
-            <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
+            <p className="max-w-xs text-xs leading-relaxed text-zinc-600 dark:text-zinc-400 lg:mt-[1.35cqw] lg:max-w-none lg:text-[1cqw] lg:leading-[1.55]">
               OpenID Connect identity platform for developers and teams who value security and freedom.
             </p>
 
-            {/* Social Icons */}
-            <div className="flex items-center gap-2.5 pt-1">
-              <a
-                href="https://github.com"
-                target="_blank"
-                rel="noreferrer"
-                aria-label="GitHub"
-                className="size-7 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors"
-              >
-                <GithubIcon className="size-3.5" />
-              </a>
-              <a
-                href="#discord"
-                aria-label="Discord"
-                className="size-7 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors"
-              >
-                <MessageSquare className="size-3.5" />
-              </a>
-              <a
-                href="#terminal"
-                aria-label="Terminal"
-                className="size-7 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors"
-              >
-                <Terminal className="size-3.5" />
-              </a>
-              <a
-                href="#email"
-                aria-label="Email"
-                className="size-7 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors"
-              >
-                <Mail className="size-3.5" />
-              </a>
+            <div className="flex items-center gap-2.5 pt-1 lg:mt-[1.8cqw] lg:gap-[0.83cqw] lg:pt-0">
+              {SOCIALS.map(({ href, label, Icon }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target={href.startsWith('http') ? '_blank' : undefined}
+                  rel={href.startsWith('http') ? 'noreferrer' : undefined}
+                  aria-label={label}
+                  className="flex size-7 items-center justify-center rounded-full bg-black/5 border border-black/10 text-zinc-700 hover:text-black hover:bg-black/10 dark:bg-[#232324] dark:border-white/5 dark:text-zinc-400 dark:hover:text-white dark:hover:border-white/20 dark:hover:bg-zinc-800 transition-colors lg:size-[2.46cqw]"
+                >
+                  <Icon className="size-3.5 lg:size-[1.45cqw]" />
+                </a>
+              ))}
             </div>
           </div>
 
-          {/* Column 2: Navigation Links (5.5 cols) */}
-          <div className="lg:col-span-5 grid grid-cols-2 sm:grid-cols-4 gap-6">
+          {/* Link columns — 4 columns pitched 12.81% apart from x 275.6 */}
+          <div className="grid grid-cols-2 gap-6 sm:grid-cols-4 lg:absolute lg:left-[26.28%] lg:top-[3.45%] lg:w-[51.24%] lg:grid-cols-4 lg:gap-0">
             {FOOTER_COLUMNS.map((col) => (
-              <div key={col.title} className="space-y-3">
-                <h5 className="font-heading font-bold text-xs text-white">
+              <div key={col.title} className="space-y-3 lg:space-y-0 lg:pr-[1cqw]">
+                <h5 className="font-heading text-xs font-bold text-zinc-950 dark:text-white lg:text-[1.2cqw]">
                   {col.title}
                 </h5>
-                <ul className="space-y-2 text-[11px]">
+                <ul className="space-y-2 text-[11px] lg:mt-[1.15cqw] lg:space-y-[0.62cqw] lg:text-[1.05cqw]">
                   {col.links.map((link) => (
                     <li key={link.label}>
                       <Link
                         href={link.href}
-                        className="text-zinc-400 hover:text-white transition-colors duration-150"
+                        className="text-zinc-600 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white transition-colors duration-150"
                       >
                         {link.label}
                       </Link>
@@ -143,39 +154,46 @@ export function FigmaFooter() {
             ))}
           </div>
 
-          {/* Column 3: Newsletter (3.5 cols) */}
-          <div className="lg:col-span-4 space-y-3">
-            <h5 className="font-heading font-bold text-xs sm:text-sm text-white">Stay in the loop</h5>
-            <p className="text-[11px] text-zinc-400 leading-snug">Get updates on new features and releases.</p>
+          {/* Newsletter panel — #191919 inset at 77.68% / 1.60% of the island */}
+          <div className="@container rounded-2xl bg-black/5 border border-black/10 dark:bg-[#191919] dark:border-white/5 p-5 md:col-span-2 lg:absolute lg:left-[77.68%] lg:top-[1.60%] lg:h-[90%] lg:w-[18.71%] lg:rounded-[1.6cqw] lg:p-[8.6cqw]">
+            <h5 className="font-heading text-sm font-bold text-zinc-950 dark:text-white lg:text-[6.35cqw]">
+              Stay in the loop
+            </h5>
+            <p className="mt-2 text-[11px] leading-snug text-zinc-600 dark:text-zinc-400 lg:mt-[7.4cqw] lg:text-[5.35cqw] lg:leading-[1.5]">
+              Get updates on new features and releases.
+            </p>
 
-            <form onSubmit={handleSubscribe} className="relative flex items-center mt-3">
+            <form
+              onSubmit={handleSubscribe}
+              className="relative mt-3 flex items-center lg:mt-[8cqw]"
+            >
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Your email"
-                className="w-full rounded-full bg-zinc-950 border border-zinc-800 px-4 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600 pr-12"
+                className="w-full rounded-full border border-zinc-300 bg-white px-4 py-2.5 pr-12 text-xs text-zinc-950 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-800 dark:bg-[#0E0E0E] dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-600 lg:h-[13.14cqw] lg:px-[5.5cqw] lg:py-0 lg:pr-[15cqw] lg:text-[4.65cqw]"
               />
               <button
                 type="submit"
                 aria-label="Subscribe"
-                className="cursor-pointer absolute right-1.5 size-7 rounded-full bg-white text-zinc-950 flex items-center justify-center hover:bg-zinc-200 transition-colors shadow-sm"
+                className="absolute right-1.5 flex size-7 cursor-pointer items-center justify-center rounded-full bg-zinc-950 text-white dark:bg-[#F3F3F2] dark:text-zinc-950 shadow-sm transition-colors hover:scale-105 active:scale-95 lg:right-[1.2cqw] lg:size-[13.14cqw]"
               >
-                <ArrowUpRight className="size-3.5" />
+                <ArrowUpRight className="size-3.5 lg:size-[5cqw]" />
               </button>
             </form>
 
             {subscribed && (
-              <p className="text-[11px] text-emerald-400 font-medium animate-pulse">
-                ✓ Thanks for subscribing!
+              <p className="mt-2 text-xs text-emerald-500 dark:text-emerald-400 lg:mt-[4cqw] lg:text-[4cqw]">
+                ✓ Subscribed!
               </p>
             )}
           </div>
-        </div>
 
-        {/* Bottom Copyright */}
-        <div className="mt-12 pt-8 text-center text-[11px] text-zinc-600 border-t border-zinc-900">
-          <p>© 2026 OID. All rights reserved.</p>
+          {/* Copyright — centred at y 87.31% of the island, no trailing gap */}
+          <p className="text-center text-[11px] text-zinc-600 md:col-span-2 lg:absolute lg:left-[40.26%] lg:top-[87.31%] lg:text-[0.9cqw]">
+            © 2026 OID. All rights reserved.
+          </p>
         </div>
       </div>
     </footer>

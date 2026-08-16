@@ -20,7 +20,7 @@ import {
 
 export default function PreviewPage() {
   return (
-    <div className="relative min-h-screen bg-black text-white font-sans overflow-x-hidden selection:bg-white selection:text-black">
+    <div className="relative min-h-screen bg-background text-foreground font-sans overflow-x-clip transition-colors duration-300">
       {/* Top Header Navigation */}
       <OrganicNavbar />
 
