@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { Logo } from '@/components/ui/logo';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -15,10 +16,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         }}
       />
 
-      {/* top bar: wordmark + theme toggle */}
-      <header className="relative z-10 flex items-center justify-between border-b-2 border-border px-6 py-4">
-        <Link href="/" className="font-heading text-xl font-bold tracking-tight">
-          id<span className="text-muted-foreground">/login</span>
+      {/* top bar: logo + theme toggle */}
+      <header className="relative z-10 flex items-center justify-between border-b-2 border-border px-6 py-3">
+        <Link href="/" className="select-none flex items-center">
+          <Logo size={48} />
         </Link>
         <ThemeToggle />
       </header>

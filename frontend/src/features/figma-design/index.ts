@@ -1,0 +1,11 @@
+export { FigmaNavbar } from './components/FigmaNavbar';
+export { FigmaHero } from './components/FigmaHero';
+export { FigmaConnectedHub } from './components/FigmaConnectedHub';
+export { FigmaCorePillars } from './components/FigmaCorePillars';
+export { FigmaAppsConsole } from './components/FigmaAppsConsole';
+export { FigmaMidBanner } from './components/FigmaMidBanner';
+export { FigmaSecurityPrivacy } from './components/FigmaSecurityPrivacy';
+export { FigmaTestimonials } from './components/FigmaTestimonials';
+export { FigmaCtaBanner } from './components/FigmaCtaBanner';
+export { FigmaFooter } from './components/FigmaFooter';
+export { FigmaLandingPage } from './components/FigmaLandingPage';

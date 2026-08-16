@@ -123,7 +123,7 @@ after(async () => {
     const users = await User.find({ email: { $in: emails } }).select('_id');
     await Session.deleteMany({ userId: { $in: users.map((u) => u._id) } });
     await User.deleteMany({ email: { $in: emails } });
-    await OAuthClient.deleteMany({ clientName: { $in: ['Admin Made', 'Rotate Me', 'Suspend Me'] } });
+    await OAuthClient.deleteMany({ clientName: { $in: ['Admin Made', 'Native Guide', 'Rotate Me', 'Suspend Me'] } });
     await mongoose.disconnect();
     await disconnectRedis();
   }
@@ -165,6 +165,26 @@ test('config-prompt endpoint tailors to the requested stack', async (t) => {
     await as(adminToken)(`/api/admin/clients/${id}/config-prompt?stack=express`),
   );
   assert.match(exp.data.prompt, /Express/);
+});
+
+test('public native client gets native, secret-free implementation guidance', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+  const res = await as(adminToken)('/api/admin/clients', {
+    method: 'POST',
+    body: JSON.stringify({
+      clientName: 'Native Guide',
+      redirectUris: ['com.example.app:/oauth/callback'],
+      tokenEndpointAuthMethod: 'none',
+      stack: 'react-native',
+    }),
+  });
+  assert.equal(res.status, 201);
+  const { data } = await jsonOf<{ data: { clientSecret?: string; configPrompt: string } }>(res);
+  assert.equal(data.clientSecret, undefined);
+  assert.match(data.configPrompt, /React Native/);
+  assert.match(data.configPrompt, /there is no client secret/);
+  assert.ok(!data.configPrompt.includes('{{CLIENT_SECRET}}'));
+  assert.ok(!data.configPrompt.includes('HTTP Basic auth'));
 });
 
 test('rotate-secret invalidates the old secret at the token endpoint', async (t) => {
@@ -281,6 +301,46 @@ test('getUser returns sessions, apps, and activity; metrics report totals', asyn
   assert.ok(typeof metrics.data.totalClients === 'number');
 });
 
+test('getClient returns client details, user metrics, and config prompt', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+  const detail = await jsonOf<{
+    data: {
+      client: { clientId: string; clientName: string };
+      metrics: { totalAuthorizedUsers: number; activeUsers24h: number; activeUsers7d: number };
+      authorizedUsers: unknown[];
+      activity: unknown[];
+      configPrompt: string;
+    };
+  }>(await as(adminToken)(`/api/admin/clients/${CLIENT.clientId}`));
+
+  assert.equal(detail.data.client.clientId, CLIENT.clientId);
+  assert.equal(detail.data.client.clientName, CLIENT.clientName);
+  assert.ok(typeof detail.data.metrics.totalAuthorizedUsers === 'number');
+  assert.ok(typeof detail.data.metrics.activeUsers24h === 'number');
+  assert.ok(typeof detail.data.metrics.activeUsers7d === 'number');
+  assert.ok(Array.isArray(detail.data.authorizedUsers));
+  assert.ok(Array.isArray(detail.data.activity));
+  assert.ok(detail.data.configPrompt.length > 0);
+});
+
+test('deleteClient removes client and cascades consents and tokens', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+  const { OAuthClient } = await import('../oauth-client/oauth-client.model');
+  const tempClient = await OAuthClient.create({
+    clientId: 'cl_temporary_delete_test',
+    clientName: 'Temp Delete App',
+    redirectUris: ['http://localhost:3000/callback'],
+  });
+
+  const res = await as(adminToken)(`/api/admin/clients/${tempClient.clientId}`, {
+    method: 'DELETE',
+  });
+  assert.equal(res.status, 200);
+
+  const lookup = await OAuthClient.findOne({ clientId: tempClient.clientId });
+  assert.equal(lookup, null);
+});
+
 test('a garbage user id is a 400, not a CastError 500', async (t) => {
   if (!available) return t.skip('Mongo/Redis not reachable');
   assert.equal((await as(adminToken)('/api/admin/users/not-an-objectid')).status, 400);
@@ -376,4 +436,3 @@ test('listUsers hides closed accounts and does not count them in metrics', async
   const detail = await as(adminToken)(`/api/admin/users/${gone._id}`);
   assert.equal(detail.status, 404);
 });
-

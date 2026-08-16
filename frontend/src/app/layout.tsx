@@ -3,7 +3,7 @@ import { Inter, Roboto_Mono } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/ui/theme-provider';
 import { AuthProvider } from '@/features/auth/context/AuthContext';
-import { CursorProvider, Cursor } from '@/components/unlumen-ui/cursor';
+import { LivingCursor } from '@/components/ui/gooey';
 
 const inter = Inter({ variable: '--font-inter', subsets: ['latin'] });
 const robotoMono = Roboto_Mono({ variable: '--font-roboto-mono', subsets: ['latin'] });
@@ -11,6 +11,11 @@ const robotoMono = Roboto_Mono({ variable: '--font-roboto-mono', subsets: ['lati
 export const metadata: Metadata = {
   title: 'id — Universal Login',
   description: 'Internal OpenID Connect provider',
+  icons: {
+    icon: '/logo/light_logo.png',
+    shortcut: '/logo/light_logo.png',
+    apple: '/logo/light_logo.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -24,10 +29,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <AuthProvider>
-            <CursorProvider global>
-              <Cursor />
-              {children}
-            </CursorProvider>
+            {children}
+            <LivingCursor />
             <GooeyFilterProvider />
           </AuthProvider>
         </ThemeProvider>

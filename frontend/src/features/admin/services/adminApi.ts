@@ -8,6 +8,7 @@ import type {
   AdminMetrics,
   ActivityEvent,
   CreatedClient,
+  AdminClientDetail,
 } from '@/types';
 
 export const AdminApi = {
@@ -37,6 +38,10 @@ export const AdminApi = {
     return (await apiClient.post<ApiEnvelope<AdminUser>>(`${API_PATHS.adminUser(id)}/unsuspend`)).data;
   },
 
+  async changeUserRole(id: string, role: 'user' | 'admin' | 'superadmin') {
+    return (await apiClient.patch<ApiEnvelope<AdminUser>>(`${API_PATHS.adminUser(id)}/role`, { role })).data;
+  },
+
   async getMetrics() {
     return (await apiClient.get<ApiEnvelope<AdminMetrics>>(API_PATHS.ADMIN_METRICS)).data;
   },
@@ -57,12 +62,25 @@ export const AdminApi = {
     return (await apiClient.get<ApiEnvelope<AdminClient[]>>(API_PATHS.ADMIN_CLIENTS)).data;
   },
 
+  async getClient(clientId: string) {
+    return (await apiClient.get<ApiEnvelope<AdminClientDetail>>(API_PATHS.adminClient(clientId))).data;
+  },
+
+  async updateClient(clientId: string, input: Partial<AdminClient>) {
+    return (await apiClient.patch<ApiEnvelope<AdminClient>>(API_PATHS.adminClient(clientId), input)).data;
+  },
+
   async createClient(input: {
     clientName: string;
     redirectUris: string[];
     description?: string;
     logoUrl?: string;
     stack?: string;
+    scopes?: string[];
+    grantTypes?: string[];
+    responseTypes?: string[];
+    tokenEndpointAuthMethod?: 'client_secret_basic' | 'client_secret_post' | 'none';
+    postLogoutRedirectUris?: string[];
   }) {
     return (await apiClient.post<ApiEnvelope<CreatedClient>>(API_PATHS.ADMIN_CLIENTS, input)).data;
   },
@@ -78,6 +96,14 @@ export const AdminApi = {
   async setClientSuspended(clientId: string, suspended: boolean, reason?: string) {
     const path = `${API_PATHS.adminClient(clientId)}/${suspended ? 'suspend' : 'unsuspend'}`;
     return (await apiClient.post<ApiEnvelope<AdminClient>>(path, suspended ? { reason } : undefined)).data;
+  },
+
+  async deleteClient(clientId: string) {
+    return (
+      await apiClient.del<ApiEnvelope<{ clientId: string; clientName: string }>>(
+        API_PATHS.adminClient(clientId),
+      )
+    ).data;
   },
 
   async getConfigPrompt(clientId: string, stack: string) {
@@ -96,7 +122,12 @@ export const unsuspendUser = AdminApi.unsuspendUser;
 export const getMetrics = AdminApi.getMetrics;
 export const getActivity = AdminApi.getActivity;
 export const listClients = AdminApi.listClients;
+export const getClient = AdminApi.getClient;
+export const updateClient = AdminApi.updateClient;
 export const createClient = AdminApi.createClient;
 export const rotateSecret = AdminApi.rotateSecret;
 export const setClientSuspended = AdminApi.setClientSuspended;
+export const deleteClient = AdminApi.deleteClient;
+export const changeUserRole = AdminApi.changeUserRole;
 export const getConfigPrompt = AdminApi.getConfigPrompt;
+

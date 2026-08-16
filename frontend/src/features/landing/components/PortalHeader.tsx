@@ -4,6 +4,35 @@ import Link from 'next/link';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { Logo } from '@/components/ui/logo';
+import { MagneticButton } from '@/components/ui/gooey';
+
+function GithubIcon({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function XTwitterIcon({ className = 'size-3.5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
+
+const NAV_LINKS = [
+  { label: 'Features', href: '#features' },
+  { label: 'Docs', href: '#docs' },
+  { label: 'Security', href: '#security' },
+  { label: 'Pricing', href: '#pricing' },
+];
 
 interface PortalHeaderProps {
   mode: 'user' | 'dev';
@@ -12,41 +41,69 @@ interface PortalHeaderProps {
 
 export function PortalHeader({ mode, onModeChange }: PortalHeaderProps) {
   const { user, logout } = useAuth();
-  const isDev = mode === 'dev';
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/30 bg-background/95 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-        {/* Brand Logo */}
-        <Link href="/" className="font-heading text-xl font-bold tracking-tight flex items-center gap-2 select-none group">
-          <svg className="size-6 text-foreground fill-current transition-transform duration-500 group-hover:rotate-12" viewBox="0 0 24 24">
-            <path d="M8 15a3.5 3.5 0 1 1 3.5 3.5c-1.93 0-3.5-1.57-3.5-3.5zm7.5-6a5 5 0 1 1 5 5c-2.76 0-5-2.24-5-5z" />
-          </svg>
-          <span className="font-black text-2xl tracking-tighter">OID</span>
-        </Link>
-        
-        {/* Central Mockup Navigation Links */}
-        <nav className="hidden items-center justify-center gap-8 md:flex">
-          <a href="#features" className="text-xs font-heading font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors duration-200">
-            Features
-          </a>
-          <a href="#security" className="text-xs font-heading font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors duration-200">
-            Security
-          </a>
-          <a href="#docs" className="text-xs font-heading font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors duration-200">
-            Docs
-          </a>
-          <a href="#pricing" className="text-xs font-heading font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors duration-200">
-            Pricing
-          </a>
-          <a href="#blog" className="text-xs font-heading font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors duration-200">
-            Blog
-          </a>
-        </nav>
- 
-        {/* Action Controls & Mode Switcher */}
-        <div className="flex items-center gap-4">
-          {/* Smaller sliding mode toggle in navbar */}
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-2 sm:py-2.5">
+        {/* Brand Logo with Magnetic Interaction */}
+        <div className="flex items-center gap-6 lg:gap-8">
+          <MagneticButton strength={0.15}>
+            <Link href="/" className="select-none flex items-center">
+              <Logo size={34} />
+            </Link>
+          </MagneticButton>
+
+          {/* Quick Anchor Navigation (Hidden on small mobile) */}
+          <nav className="hidden md:flex items-center gap-6">
+            {NAV_LINKS.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                className="text-xs font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground"
+              >
+                {link.label}
+              </a>
+            ))}
+          </nav>
+        </div>
+
+        {/* Action Controls, Socials & Mode Switcher */}
+        <div className="flex items-center gap-2.5 sm:gap-3.5">
+          {/* Social Links (GitHub & Twitter / X) */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <MagneticButton strength={0.2}>
+              <a
+                href="https://github.com/anandxdj/id"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="GitHub Repository (anandxdj/id)"
+                title="GitHub: anandxdj/id"
+                className="group flex h-8 items-center gap-1.5 rounded-full border border-border/70 bg-secondary/50 px-2.5 sm:px-3 text-xs font-medium text-foreground transition-all duration-200 hover:border-foreground/30 hover:bg-secondary"
+              >
+                <GithubIcon className="size-3.5 text-muted-foreground transition-colors group-hover:text-foreground" />
+                <span className="hidden xl:inline text-[11px] font-mono text-muted-foreground group-hover:text-foreground">
+                  anandxdj/id
+                </span>
+              </a>
+            </MagneticButton>
+
+            <MagneticButton strength={0.2}>
+              <a
+                href="https://x.com/anandxdj"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Twitter / X Account (@anandxdj)"
+                title="Twitter / X: @anandxdj"
+                className="group flex size-8 items-center justify-center rounded-full border border-border/70 bg-secondary/50 text-foreground transition-all duration-200 hover:border-foreground/30 hover:bg-secondary"
+              >
+                <XTwitterIcon className="size-3.5 text-muted-foreground transition-colors group-hover:text-foreground" />
+              </a>
+            </MagneticButton>
+          </div>
+
+          <div className="h-4 w-px bg-border/60 hidden sm:block" />
+
+          {/* Sliding mode toggle in navbar */}
           <div className="relative flex items-center bg-secondary/80 border border-border p-0.5 rounded-full w-24 h-7 text-[9px] font-mono select-none font-bold shadow-sm">
             <div 
               className="absolute top-0.5 bottom-0.5 rounded-full bg-foreground shadow-sm transition-all duration-300"
@@ -69,28 +126,32 @@ export function PortalHeader({ mode, onModeChange }: PortalHeaderProps) {
             </button>
           </div>
 
-          <ThemeToggle />
+          <ThemeToggle className="size-8" />
 
           {user ? (
-            <div className="flex items-center gap-3">
-              <div className="hidden flex-col items-end text-right sm:flex">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="hidden flex-col items-end text-right lg:flex">
                 <span className="font-heading text-xs font-bold text-foreground">{user.name}</span>
               </div>
-              <Link href="/account">
-                <Button size="sm" variant="secondary" className="px-3">
-                  Account
-                </Button>
-              </Link>
-              <Button size="sm" variant="ghost" className="text-xs" onClick={() => logout()}>
+              <MagneticButton strength={0.2}>
+                <Link href="/account">
+                  <Button size="sm" variant="secondary" className="h-8 px-3 text-xs">
+                    Account
+                  </Button>
+                </Link>
+              </MagneticButton>
+              <Button size="sm" variant="ghost" className="h-8 text-xs hidden sm:inline-flex" onClick={() => logout()}>
                 Sign out
               </Button>
             </div>
           ) : (
-            <Link href="/login">
-              <Button size="sm" className="rounded-full font-heading text-xs font-bold px-4 py-1.5 hover:bg-foreground hover:text-background transition-colors duration-300">
-                Get Started
-              </Button>
-            </Link>
+            <MagneticButton strength={0.22}>
+              <Link href="/login">
+                <Button size="sm" className="h-8 rounded-full font-heading text-xs font-bold px-3.5 bg-foreground text-background hover:bg-foreground/90 transition-colors duration-300">
+                  Get Started
+                </Button>
+              </Link>
+            </MagneticButton>
           )}
         </div>
       </div>
