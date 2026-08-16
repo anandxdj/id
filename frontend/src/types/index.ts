@@ -81,6 +81,12 @@ export interface AdminClient {
   suspended: boolean;
   suspendedReason: string;
   createdAt: string;
+  scopes?: string[];
+  grantTypes?: string[];
+  responseTypes?: string[];
+  tokenEndpointAuthMethod?: 'client_secret_basic' | 'client_secret_post' | 'none' | string;
+  postLogoutRedirectUris?: string[];
+  clientType?: string;
 }
 
 export interface ActivityEvent {
@@ -120,3 +126,29 @@ export interface AdminUserDetail {
   apps: AuthorizedApp[];
   activity: ActivityEvent[];
 }
+
+export interface AdminClientAuthorizedUser {
+  userId: string;
+  name: string;
+  email: string;
+  role?: string;
+  profilePictureUrl?: string;
+  scope: string;
+  authorizedAt: string;
+  lastUsedAt: string | null;
+}
+
+export interface AdminClientMetrics {
+  totalAuthorizedUsers: number;
+  activeUsers24h: number;
+  activeUsers7d: number;
+}
+
+export interface AdminClientDetail {
+  client: AdminClient;
+  metrics: AdminClientMetrics;
+  authorizedUsers: AdminClientAuthorizedUser[];
+  activity: ActivityEvent[];
+  configPrompt: string;
+}
+

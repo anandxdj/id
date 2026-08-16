@@ -19,6 +19,8 @@ import type { IUser } from '../auth/auth.model';
 import OAuthClient from '../oauth-client/oauth-client.model';
 import type { IOAuthClient } from '../oauth-client/oauth-client.model';
 import { ClientPolicy } from '../oauth/client-policy.service';
+import Consent from '../oauth/consent.model';
+import { OAuthAccessToken } from '../oauth/oauth-access-token.model';
 import AuthEvent from '../events/event.model';
 import type { CreateClientInput } from './dto/create-client.schema';
 import type { UpdateClientInput } from './dto/update-client.schema';
@@ -320,3 +322,91 @@ export const getClientConfigPrompt = async (clientId: string, stack?: string) =>
     { stack: chosen },
   );
 };
+
+export const getClient = async (clientId: string) => {
+  const client = await clientService.findByClientId(clientId);
+  if (!client) throw ApiError.notFound('Client not found');
+
+  const [totalAuthorizedUsers, active24hUserIds, active7dUserIds, consents, activity] =
+    await Promise.all([
+      Consent.countDocuments({ clientId }),
+      AuthEvent.distinct('actorUserId', { clientId, createdAt: { $gte: since(1) } }),
+      AuthEvent.distinct('actorUserId', { clientId, createdAt: { $gte: since(7) } }),
+      Consent.find({ clientId }).sort({ updatedAt: -1 }).limit(100).lean(),
+      events.query({ clientId, limit: PAGINATION.DEFAULT_LIMIT }),
+    ]);
+
+  const userIds = consents.map((c) => c.userId);
+  const users = await User.find({ _id: { $in: userIds } }).lean();
+  const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+  const lastUsedEvents = userIds.length > 0
+    ? await AuthEvent.aggregate<{ _id: mongoose.Types.ObjectId; last: Date }>([
+        {
+          $match: {
+            clientId,
+            actorUserId: { $in: userIds },
+            type: { $in: ['token.issued', 'userinfo.access'] },
+          },
+        },
+        { $group: { _id: '$actorUserId', last: { $max: '$createdAt' } } },
+      ])
+    : [];
+  const lastUsedMap = new Map(lastUsedEvents.map((e) => [e._id.toString(), e.last]));
+
+  const authorizedUsers = consents.map((c) => {
+    const u = userMap.get(c.userId.toString());
+    return {
+      userId: c.userId.toString(),
+      name: u ? u.name : 'Unknown User',
+      email: u ? u.email : '',
+      role: u?.role,
+      profilePictureUrl: u?.profilePictureUrl ?? '',
+      scope: c.scope,
+      authorizedAt: c.createdAt,
+      lastUsedAt: lastUsedMap.get(c.userId.toString()) ?? null,
+    };
+  });
+
+  const configPrompt = buildClientConfigPrompt(
+    {
+      clientId: client.clientId,
+      clientName: client.clientName,
+      redirectUris: client.redirectUris,
+      tokenEndpointAuthMethod: client.tokenEndpointAuthMethod,
+    },
+    { stack: 'nextjs' },
+  );
+
+  return {
+    client: toAdminClient(client),
+    metrics: {
+      totalAuthorizedUsers,
+      activeUsers24h: active24hUserIds.filter(Boolean).length,
+      activeUsers7d: active7dUserIds.filter(Boolean).length,
+    },
+    authorizedUsers,
+    activity: activity.items,
+    configPrompt,
+  };
+};
+
+export const deleteClient = async (clientId: string, ctx: AdminActionCtx) => {
+  const client = await OAuthClient.findOneAndDelete({ clientId });
+  if (!client) throw ApiError.notFound('Client not found');
+
+  await Promise.all([
+    Consent.deleteMany({ clientId }),
+    OAuthAccessToken.deleteMany({ clientId }),
+  ]);
+
+  events.record('admin.client.deleted', {
+    ...ctx,
+    clientId,
+    meta: { clientName: client.clientName },
+  });
+
+  return { clientId, clientName: client.clientName };
+};
+
+
