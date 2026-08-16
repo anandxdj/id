@@ -200,6 +200,20 @@ after(async () => {
 });
 
 // ── Rotation over the wire ────────────────────────────────────────────────────
+test('the refresh endpoint rejects a missing cookie with the observed error', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+
+  const response = await post('/api/auth/refresh-token');
+
+  assert.equal(response.status, 401);
+  assert.equal(response.body.code, ERROR_CODES.REFRESH_TOKEN_MISSING);
+  assert.equal(response.body.message, 'No refresh token supplied');
+  assert.ok(
+    response.cookies.some((cookie) => cookie.startsWith(`${COOKIE_NAMES.REFRESH_TOKEN}=;`)),
+    'a missing refresh token is cleared from the browser',
+  );
+});
+
 test('the refresh endpoint hands back a rotated cookie, and the old one stops working', async (t) => {
   if (!available) return t.skip('Mongo/Redis not reachable');
   const { RefreshToken } = await import('./refresh-token.model');
