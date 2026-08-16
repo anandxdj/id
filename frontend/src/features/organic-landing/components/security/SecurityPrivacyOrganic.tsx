@@ -62,7 +62,7 @@ export function SecurityPrivacyOrganic() {
               Performance.
             </h2>
             <p className="text-xs sm:text-[13px] text-zinc-300 dark:text-zinc-600 font-normal leading-relaxed max-w-sm">
-              OID gives you all the tools you need to manage identity securely while giving users full control over their data.
+              ID gives you all the tools you need to manage identity securely while giving users full control over their data.
             </p>
           </div>
 

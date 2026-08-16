@@ -117,7 +117,7 @@ export function BiometricPasskeyHeroCard() {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] font-mono font-extrabold uppercase tracking-widest text-zinc-100">
-                  OID Passkey
+                  ID Passkey
                 </span>
                 <Radio className="size-3 text-zinc-500 animate-pulse" />
               </div>

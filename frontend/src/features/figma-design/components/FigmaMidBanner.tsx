@@ -48,7 +48,7 @@ export function FigmaMidBanner({ className = '' }: { className?: string }) {
           <div className="space-y-2 lg:col-span-4 lg:space-y-[1.2cqw]">
             <div className="inline-flex w-fit items-center gap-2 rounded-full border border-black/10 bg-black/5 dark:border-white/15 dark:bg-white/10 px-3 py-0.5 text-[10.5px] font-semibold text-zinc-800 dark:text-zinc-200 backdrop-blur-xs lg:gap-[0.6cqw] lg:px-[1.1cqw] lg:py-[0.2cqw] lg:text-[1.15cqw]">
               <span className="size-1.5 rounded-full bg-zinc-900 dark:bg-white lg:size-[0.5cqw]" />
-              <span>Why developers choose OID</span>
+              <span>Why developers choose ID</span>
             </div>
 
             <h2 className="font-heading text-2xl font-black leading-[1.05] tracking-tight text-zinc-950 dark:text-white lg:text-[2.9cqw]">

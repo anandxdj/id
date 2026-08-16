@@ -8,7 +8,7 @@ import React from 'react';
  * volumetric highlights, and central black core badge.
  */
 
-export function ClayHub3D({ label = 'OID' }: { label?: string }) {
+export function ClayHub3D({ label = 'ID' }: { label?: string }) {
   return (
     <div className="relative flex items-center justify-center size-[460px] sm:size-[540px] md:size-[580px] select-none">
       {/* Soft Ambient Floor Shadow */}

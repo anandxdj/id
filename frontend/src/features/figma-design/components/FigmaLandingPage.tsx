@@ -79,7 +79,7 @@ function LandingToolOverlay({
       >
         <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-white/10 bg-[#111112]/95 px-5 py-4 backdrop-blur sm:px-7">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">OID platform</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">ID platform</p>
             <h2 id="landing-tool-title" className="mt-1 font-heading text-xl font-black tracking-tight">
               {copy.title}
             </h2>
@@ -137,7 +137,7 @@ export function FigmaLandingPage() {
   const primaryHref = user ? '/account' : '/login';
 
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-background text-sm font-medium text-muted-foreground">Loading OID…</div>;
+    return <div className="flex min-h-screen items-center justify-center bg-background text-sm font-medium text-muted-foreground">Loading ID…</div>;
   }
 
   return (

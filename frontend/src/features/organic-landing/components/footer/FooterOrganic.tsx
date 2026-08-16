@@ -83,19 +83,21 @@ export function FooterOrganic({ className = '' }: FooterOrganicProps) {
   ];
 
   return (
-    <footer className={`relative mx-auto max-w-[1400px] px-4 sm:px-6 py-4 select-none ${className}`}>
-      {/* Refined Organic Dark Island Container */}
+    <footer className={`relative mx-auto max-w-[1440px] px-4 sm:px-6 py-4 select-none ${className}`}>
+      {/* Dark Organic Island Container with Custom foother.svg */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: '-40px' }}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full rounded-[2rem] sm:rounded-[2.5rem] bg-[#1A1A1A] text-white p-6 sm:p-8 md:p-10 shadow-2xl border border-white/10 overflow-hidden"
+        className="relative w-full overflow-hidden rounded-[2.2rem] sm:rounded-[2.8rem] pt-8 sm:pt-10 pb-6 sm:pb-7 px-6 sm:px-10 md:px-12 text-white shadow-2xl"
       >
-        {/* Subtle Ambient Background Gradient / Organic Glow */}
-        <div 
-          className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-white/5 blur-3xl rounded-full"
-          aria-hidden="true" 
+        {/* Custom SVG Background */}
+        <img
+          src="/landing_components/foother.svg"
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 size-full object-fill filter invert dark:filter-none drop-shadow-xl transition-[filter] duration-300 z-0"
         />
 
         {/* Inner Content Grid */}
@@ -104,17 +106,17 @@ export function FooterOrganic({ className = '' }: FooterOrganicProps) {
           <div className="lg:col-span-3 space-y-3.5">
             <Link href="/" className="flex items-center gap-2.5 group w-fit">
               <div className="flex items-center gap-1 transition-transform duration-200 group-hover:scale-110">
-                <div className="size-5 sm:size-6 rounded-full bg-white flex items-center justify-center shadow-xs">
-                  <div className="size-2 rounded-full bg-black" />
+                <div className="size-5 sm:size-6 rounded-full bg-zinc-950 dark:bg-white flex items-center justify-center shadow-xs">
+                  <div className="size-2 rounded-full bg-white dark:bg-black" />
                 </div>
-                <div className="size-3 sm:size-3.5 rounded-full bg-white" />
+                <div className="size-3 sm:size-3.5 rounded-full bg-zinc-950 dark:bg-white" />
               </div>
-              <span className="font-heading font-black text-xl sm:text-2xl tracking-tight text-white">
-                OID
+              <span className="font-heading font-black text-xl sm:text-2xl tracking-tight text-zinc-950 dark:text-white">
+                ID
               </span>
             </Link>
 
-            <p className="text-[11px] sm:text-xs text-zinc-400 max-w-xs leading-relaxed">
+            <p className="text-[11px] sm:text-xs text-zinc-600 dark:text-zinc-400 max-w-xs leading-relaxed">
               A self-hosted OpenID Connect provider for modern applications.
             </p>
 
@@ -134,7 +136,7 @@ export function FooterOrganic({ className = '' }: FooterOrganicProps) {
                       target={item.href.startsWith('http') ? '_blank' : undefined}
                       rel="noreferrer"
                       aria-label={item.label}
-                      className="size-7 sm:size-8 rounded-full bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:border-white/30 hover:bg-white/10 flex items-center justify-center transition-colors"
+                      className="size-7 sm:size-8 rounded-full bg-black/5 border border-black/10 text-zinc-700 hover:text-black hover:bg-black/10 dark:bg-[#232324] dark:border-white/5 dark:text-zinc-400 dark:hover:text-white dark:hover:border-white/20 dark:hover:bg-zinc-800 flex items-center justify-center transition-colors"
                     >
                       <Icon className="size-3.5" />
                     </a>
@@ -148,7 +150,7 @@ export function FooterOrganic({ className = '' }: FooterOrganicProps) {
           <div className="lg:col-span-5 grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
             {FOOTER_COLUMNS.map((col) => (
               <div key={col.title} className="space-y-2.5">
-                <h5 className="font-heading font-bold text-xs text-white">
+                <h5 className="font-heading font-bold text-xs text-zinc-950 dark:text-white">
                   {col.title}
                 </h5>
                 <ul className="space-y-1.5 text-[11px]">
@@ -156,7 +158,7 @@ export function FooterOrganic({ className = '' }: FooterOrganicProps) {
                     <li key={link.label}>
                       <Link
                         href={link.href}
-                        className="text-zinc-400 hover:text-white transition-colors duration-150 inline-block hover:translate-x-0.5 transform"
+                        className="text-zinc-600 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white transition-colors duration-150 inline-block hover:translate-x-0.5 transform"
                       >
                         {link.label}
                       </Link>
@@ -168,9 +170,9 @@ export function FooterOrganic({ className = '' }: FooterOrganicProps) {
           </div>
 
           {/* Column 3: Newsletter (4 cols) */}
-          <div className="lg:col-span-4 rounded-2xl bg-white/5 border border-white/10 p-4 sm:p-5 space-y-2">
-            <h5 className="font-heading font-bold text-xs sm:text-sm text-white">Stay in the loop</h5>
-            <p className="text-[10.5px] sm:text-[11px] text-zinc-400 leading-snug">Get updates on new features and releases.</p>
+          <div className="lg:col-span-4 rounded-2xl bg-black/5 border border-black/10 dark:bg-[#191919] dark:border-white/5 p-4 sm:p-5 space-y-2">
+            <h5 className="font-heading font-bold text-xs sm:text-sm text-zinc-950 dark:text-white">Stay in the loop</h5>
+            <p className="text-[10.5px] sm:text-[11px] text-zinc-600 dark:text-zinc-400 leading-snug">Get updates on new features and releases.</p>
 
             <form onSubmit={handleSubscribe} className="relative flex items-center mt-2.5">
               <input
@@ -178,19 +180,19 @@ export function FooterOrganic({ className = '' }: FooterOrganicProps) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Your email"
-                className="w-full rounded-full bg-white/5 border border-white/15 px-3.5 py-2 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-white/40 pr-10"
+                className="w-full rounded-full bg-white border border-zinc-300 px-3.5 py-2 text-xs text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500 dark:bg-[#0E0E0E] dark:border-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-600 pr-10"
               />
               <button
                 type="submit"
                 aria-label="Subscribe"
-                className="cursor-pointer absolute right-1 size-6.5 rounded-full bg-white text-zinc-950 flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xs"
+                className="cursor-pointer absolute right-1 size-6.5 rounded-full bg-zinc-950 text-white dark:bg-[#F3F3F2] dark:text-zinc-950 flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xs"
               >
                 <ArrowUpRight className="size-3.5" />
               </button>
             </form>
 
             {subscribed && (
-              <p className="text-[10.5px] text-emerald-400 font-medium animate-pulse">
+              <p className="text-[10.5px] text-emerald-500 dark:text-emerald-400 font-medium animate-pulse">
                 ✓ Thanks for subscribing!
               </p>
             )}
@@ -198,14 +200,14 @@ export function FooterOrganic({ className = '' }: FooterOrganicProps) {
         </div>
 
         {/* Bottom Copyright & Status */}
-        <div className="relative z-10 mt-8 pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10.5px] sm:text-[11px] text-zinc-400">
-          <p>© 2026 OID. Open source identity infrastructure.</p>
+        <div className="relative z-10 mt-6 pt-3.5 border-t border-black/10 dark:border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10.5px] sm:text-[11px] text-zinc-600 dark:text-zinc-400">
+          <p>© 2026 ID. Open source identity infrastructure.</p>
           <div className="flex items-center gap-4">
-            <a href="https://github.com/anandxdj/id" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">
+            <a href="https://github.com/anandxdj/id" target="_blank" rel="noreferrer" className="hover:text-zinc-950 dark:hover:text-white transition-colors">
               github.com/anandxdj/id
             </a>
-            <span className="text-zinc-600">•</span>
-            <a href="https://x.com/anandxdj" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">
+            <span className="text-zinc-400 dark:text-zinc-600">•</span>
+            <a href="https://x.com/anandxdj" target="_blank" rel="noreferrer" className="hover:text-zinc-950 dark:hover:text-white transition-colors">
               @anandxdj
             </a>
           </div>

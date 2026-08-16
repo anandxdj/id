@@ -9,12 +9,13 @@ console.log('Taking screenshot with chrome...');
 const res = spawnSync(chromePath, [
   '--headless=new',
   '--disable-gpu',
-  '--window-size=1440,3600',
+  '--window-size=1440,3800',
   `--screenshot=${outPath}`,
-  '--virtual-time-budget=4000',
+  '--virtual-time-budget=6000',
   'http://localhost:3000/'
 ]);
 
 console.log('Finished. Status:', res.status);
 console.log('File created:', fs.existsSync(outPath), 'Size:', fs.existsSync(outPath) ? fs.statSync(outPath).size : 0);
+
 

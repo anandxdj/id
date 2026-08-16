@@ -8,7 +8,7 @@ interface LogoProps {
    *  intrinsic hint for `next/image` and no fixed pixel box is applied. */
   markClassName?: string;
   size?: number;
-  /** Render the "OID" wordmark beside the mark, as in the Figma lockup. */
+  /** Render the "ID" wordmark beside the mark, as in the Figma lockup. */
   wordmark?: boolean;
   wordmarkClassName?: string;
 }
@@ -39,7 +39,7 @@ export function Logo({
         {/* Light mode logo */}
         <Image
           src="/logo/light_logo.png"
-          alt={wordmark ? '' : 'OID logo'}
+          alt={wordmark ? '' : 'ID logo'}
           width={size}
           height={size}
           className={cn('dark:hidden', imageClasses)}
@@ -48,7 +48,7 @@ export function Logo({
         {/* Dark mode logo */}
         <Image
           src="/logo/dark_logo.png"
-          alt={wordmark ? '' : 'OID logo'}
+          alt={wordmark ? '' : 'ID logo'}
           width={size}
           height={size}
           className={cn('hidden dark:block', imageClasses)}
@@ -63,7 +63,7 @@ export function Logo({
             wordmarkClassName
           )}
         >
-          OID
+          ID
         </span>
       ) : null}
     </div>

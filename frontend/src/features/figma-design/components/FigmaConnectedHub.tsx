@@ -12,6 +12,8 @@ import {
   Unlock,
   UserCheck,
   Lock,
+  Fingerprint,
+  KeyRound,
 } from 'lucide-react';
 
 interface HubCardSlot {
@@ -123,38 +125,47 @@ const HUB_SLOTS: HubCardSlot[] = [
   },
 ];
 
-/** Central blob + cast shadow + concentric OID badge with fluid breathing. */
+/** 3D Volumetric Fluid Organic Blob Hub with ID Emblem */
 function HubCore({ className = '' }: { className?: string }) {
   return (
-    <div className={`@container relative ${className}`}>
-      <img
-        src="/landing_components/hub_shadow.svg"
-        alt=""
+    <div className={`@container relative select-none ${className}`}>
+      {/* Soft Ambient Radial Floor Shadow */}
+      <div 
+        className="pointer-events-none absolute left-[32%] top-[56%] h-[24%] w-[38%] rounded-full bg-black/25 dark:bg-black/80 blur-2xl -z-10"
         aria-hidden="true"
-        className="pointer-events-none absolute left-[34.420%] top-[60.891%] z-0 h-[13.563%] w-[36.294%] object-fill opacity-80"
       />
-      <motion.img
-        src="/landing_components/hub_blob.svg"
-        alt=""
-        aria-hidden="true"
+
+      {/* 3D Volumetric Fluid Organic Blob with Levitation */}
+      <motion.div
         animate={{
-          scale: [1, 1.02, 1],
-          rotate: [0, 0.6, -0.6, 0],
+          scale: [1, 1.025, 1],
+          rotate: [0, 0.7, -0.7, 0],
+          y: [-4, 4, -4],
         }}
         transition={{
-          duration: 9,
+          duration: 8,
           repeat: Infinity,
           ease: 'easeInOut',
         }}
-        className="pointer-events-none absolute left-[29.305%] top-[1.839%] z-10 h-[72.615%] w-[44.045%] object-fill"
-      />
+        className="pointer-events-none absolute left-[29.305%] top-[1.839%] z-10 h-[72.615%] w-[44.045%]"
+      >
+        <img
+          src="/landing_components/hub_blob.svg"
+          alt=""
+          aria-hidden="true"
+          className="size-full object-fill drop-shadow-[0_18px_35px_rgba(0,0,0,0.14)] dark:drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)]"
+        />
+      </motion.div>
+
+      {/* Central 3D Embossed ID Core Badge */}
       <motion.div
         whileHover={{ scale: 1.12 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 18 }}
-        className="absolute left-[39.613%] top-[34.138%] z-20 flex h-[28.190%] w-[19.133%] cursor-pointer items-center justify-center rounded-full bg-foreground shadow-lg shadow-black/20"
+        whileTap={{ scale: 0.95 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 16 }}
+        className="absolute left-[39.613%] top-[34.138%] z-20 flex h-[28.190%] w-[19.133%] cursor-pointer items-center justify-center rounded-full bg-foreground shadow-xl shadow-black/25 border border-white/10"
       >
         <span className="font-heading text-[4.8cqw] font-black leading-none tracking-tight text-background select-none">
-          OID
+          ID
         </span>
       </motion.div>
     </div>
@@ -181,8 +192,7 @@ export function FigmaConnectedHub({ mode = 'user' }: FigmaConnectedHubProps) {
             <motion.div
               key={slot.id}
               initial={{ opacity: 0, y: 15, scale: 0.96 }}
-              whileInView={{ opacity: 1, y: 0, scale: 1 }}
-              viewport={{ once: true, margin: '-40px' }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{
                 duration: 0.6,
                 delay: slot.delay,

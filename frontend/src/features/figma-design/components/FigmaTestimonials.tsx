@@ -10,7 +10,7 @@ export const FIGMA_TESTIMONIALS_DATA = [
     id: '1',
     badge: 'Leader in security',
     quote:
-      'OID gave us an enterprise-grade SSO without vendor lock-in. Setup took less than a day.',
+      'ID gave us an enterprise-grade SSO without vendor lock-in. Setup took less than a day.',
     author: 'Sarah Chen',
     role: 'CTO @ CloudScale',
     viewBox: '0 0 240 120',
@@ -40,7 +40,7 @@ export const FIGMA_TESTIMONIALS_DATA = [
     id: '3',
     badge: 'Privacy First',
     quote:
-      'Security, flexibility, and performance—OID checks all the boxes.',
+      'Security, flexibility, and performance—ID checks all the boxes.',
     author: 'Priya Patel',
     role: 'Director, VoxPay',
     viewBox: '0 0 240 120',

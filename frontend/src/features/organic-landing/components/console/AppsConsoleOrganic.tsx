@@ -55,7 +55,7 @@ export const CONSOLE_ITEMS = [
   {
     id: 'settings',
     title: 'Settings',
-    desc: 'Configure OID to fit your needs',
+    desc: 'Configure ID to fit your needs',
     icon: Settings,
   },
   {
@@ -107,7 +107,7 @@ export function AppsConsoleOrganic({ onExplore, onCardClick }: AppsConsoleOrgani
             </h2>
 
             <p className="text-xs sm:text-[13px] text-zinc-300 dark:text-zinc-600 font-normal leading-relaxed max-w-sm">
-              Sign in once with OID and access all your tools and applications seamlessly.
+              Sign in once with ID and access all your tools and applications seamlessly.
             </p>
 
             <div className="pt-0.5">

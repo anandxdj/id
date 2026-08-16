@@ -9,7 +9,7 @@ export const TESTIMONIALS_DATA = [
     id: '1',
     badge: 'Loved by developers',
     quote:
-      'OID is exactly what we needed. Easy to self-host, simple to integrate, and super reliable.',
+      'ID is exactly what we needed. Easy to self-host, simple to integrate, and super reliable.',
     author: 'Sarah Chen',
     role: 'Developer',
   },

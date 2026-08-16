@@ -52,7 +52,7 @@ const HERO_CONTENT = {
       </>
     ),
     description:
-      'OID gives you a pure, standards-compliant identity platform to power SSO, manage users, and protect access—all for you to own.',
+      'ID gives you a pure, standards-compliant identity platform to power SSO, manage users, and protect access—all for you to own.',
     secondaryCta: {
       label: 'View Docs',
       href: '#docs',

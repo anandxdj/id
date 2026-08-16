@@ -47,7 +47,7 @@ export function HeroVariantConnectedHub({
 
               {/* Description */}
               <p className="text-xs sm:text-[13.5px] md:text-[14px] text-zinc-600 font-normal leading-relaxed max-w-[400px]">
-                OID is a self-hosted OpenID Connect provider that&apos;s secure, fast, and built for you to own your identity and access everything seamlessly.
+                ID is a self-hosted OpenID Connect provider that&apos;s secure, fast, and built for you to own your identity and access everything seamlessly.
               </p>
 
               {/* Action Buttons */}
@@ -100,7 +100,7 @@ export function HeroVariantConnectedHub({
             <div className="relative w-full transition-transform duration-500 hover:scale-[1.02]">
               <img
                 src="/components/heroimage_hero.png"
-                alt="OID Identity illustration"
+                alt="ID Identity illustration"
                 className="w-full h-auto object-contain block drop-shadow-[0_15px_35px_rgba(255,255,255,0.08)]"
               />
             </div>

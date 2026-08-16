@@ -51,7 +51,7 @@ export function MidValueBanner() {
           {/* Left Headline (4 cols) */}
           <div className="lg:col-span-4 space-y-2">
             <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-black/5 border border-black/10 text-zinc-800 dark:bg-white/10 dark:border-white/15 dark:text-zinc-200 text-[10.5px] font-semibold backdrop-blur-xs w-fit transition-transform duration-200 hover:scale-105">
-              <span>Why OID</span>
+              <span>Why ID</span>
             </div>
 
             <h2 className="font-heading text-xl sm:text-2xl md:text-[2rem] lg:text-[2.2rem] font-black tracking-tight text-zinc-950 dark:text-white leading-[1.05]">

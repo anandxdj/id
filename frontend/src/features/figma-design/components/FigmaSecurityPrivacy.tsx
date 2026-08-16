@@ -66,7 +66,7 @@ export function FigmaSecurityPrivacy({ className = '' }: { className?: string })
               Performance.
             </h2>
             <p className="max-w-sm text-xs font-normal leading-relaxed text-zinc-300 dark:text-zinc-600 lg:max-w-none lg:text-[1.25cqw]">
-              OID is designed with security and privacy at its core. Zero compromises, engineered by developers, for teams.
+              ID is designed with security and privacy at its core. Zero compromises, engineered by developers, for teams.
             </p>
           </div>
 

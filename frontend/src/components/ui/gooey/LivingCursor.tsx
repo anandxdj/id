@@ -88,9 +88,9 @@ export function LivingCursor({
     const container = containerRef.current;
     if (!container) return;
 
-    // Check pointer capability
-    const hasFinePointer = window.matchMedia('(pointer: fine)').matches;
-    if (!hasFinePointer) {
+    // Check if device is purely a touch device with no hover/pointer capability
+    const isTouchOnly = window.matchMedia('(pointer: coarse) and (not (hover: hover))').matches;
+    if (isTouchOnly) {
       container.style.display = 'none';
       return;
     }
@@ -137,6 +137,9 @@ export function LivingCursor({
     }
 
     const onMouseMove = (e: MouseEvent | PointerEvent) => {
+      // Ignore simulated mouse events from touch interactions
+      if ('pointerType' in e && e.pointerType === 'touch') return;
+
       const targetX = e.clientX - width / 2;
       const targetY = e.clientY - width / 2;
 
@@ -180,6 +183,7 @@ export function LivingCursor({
     };
 
     const onMouseEnter = (e: MouseEvent | PointerEvent) => {
+      if ('pointerType' in e && e.pointerType === 'touch') return;
       mousePosition.x = e.clientX - width / 2;
       mousePosition.y = e.clientY - width / 2;
       container.style.opacity = '1';
@@ -195,8 +199,12 @@ export function LivingCursor({
       for (let index = 0; index < dots.length; index++) {
         const dot = dots[index];
         const nextDot = dots[index + 1] || dots[0];
-        dot.x = x;
-        dot.y = y;
+
+        if (!idle || index <= sineDots) {
+          dot.x = x;
+          dot.y = y;
+        }
+
         dot.draw(idle, sineDots, hoverScale);
 
         if (!idle || index <= sineDots) {
@@ -217,7 +225,6 @@ export function LivingCursor({
     document.documentElement.addEventListener('mouseleave', onMouseLeave);
     document.documentElement.addEventListener('mouseenter', onMouseEnter);
 
-    container.style.opacity = '1';
     startIdleTimer();
     animFrameId = requestAnimationFrame(render);
 
@@ -241,20 +248,19 @@ export function LivingCursor({
       <svg
         xmlns="http://www.w3.org/2000/svg"
         version="1.1"
-        className="pointer-events-none absolute size-0 opacity-0"
-        style={{ width: 0, height: 0, position: 'absolute' }}
+        className="pointer-events-none fixed top-0 left-0"
+        style={{ width: 0, height: 0, position: 'fixed', overflow: 'hidden' }}
         aria-hidden="true"
       >
         <defs>
-          <filter id="goo" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="4.5" result="blur" />
+          <filter id="goo" x="0%" y="0%" width="100%" height="100%" filterUnits="userSpaceOnUse">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
             <feColorMatrix
               in="blur"
               mode="matrix"
-              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -7.5"
+              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -9"
               result="goo"
             />
-            <feComposite in="SourceGraphic" in2="goo" operator="atop" />
           </filter>
         </defs>
       </svg>
@@ -263,7 +269,7 @@ export function LivingCursor({
       <div
         ref={containerRef}
         id="cursor"
-        className={`Cursor pointer-events-none fixed top-0 left-0 z-[9999999] opacity-100 transition-opacity duration-150 ${className}`}
+        className={`Cursor pointer-events-none fixed inset-0 w-full h-full z-[9999999] opacity-100 transition-opacity duration-150 ${className}`}
         aria-hidden="true"
       />
     </>

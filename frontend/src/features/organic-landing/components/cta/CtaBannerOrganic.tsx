@@ -39,7 +39,7 @@ export function CtaBannerOrganic({ onGetStarted }: CtaBannerOrganicProps) {
               of identity?
             </h2>
             <p className="text-[11.5px] sm:text-xs text-zinc-300 dark:text-zinc-600 font-normal leading-relaxed">
-              Get started with OID and give your users a secure, seamless sign-in experience.
+              Get started with ID and give your users a secure, seamless sign-in experience.
             </p>
           </div>
 

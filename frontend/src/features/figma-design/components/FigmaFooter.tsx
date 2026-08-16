@@ -201,7 +201,7 @@ export function FigmaFooter({ className = '' }: { className?: string }) {
 
           {/* Copyright — centred at y 87.31% of the island, no trailing gap */}
           <p className="text-center text-[11px] text-zinc-600 md:col-span-2 lg:absolute lg:left-[40.26%] lg:top-[87.31%] lg:text-[0.9cqw]">
-            © 2026 OID. All rights reserved.
+            © 2026 ID. All rights reserved.
           </p>
         </div>
       </div>

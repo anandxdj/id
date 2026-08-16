@@ -45,7 +45,7 @@ const STEPS: StepData[] = [
     label: '02. Verify Verifier',
     shortTitle: 'PKCE Handshake',
     badge: '< 6ms Execution',
-    description: 'OID Identity Engine verifies code_verifier against code_challenge without storing plain secrets.',
+    description: 'ID Identity Engine verifies code_verifier against code_challenge without storing plain secrets.',
   },
   {
     id: 3,
@@ -287,7 +287,7 @@ export function AuthFlowVisualizer() {
               </div>
             </div>
 
-            {/* Node 2: OID Identity Hub (Central) */}
+            {/* Node 2: ID Identity Hub (Central) */}
             <div
               className={`flex flex-col items-center gap-1.5 transition-all duration-300 ${
                 currentStep >= 2 ? 'opacity-100' : 'opacity-60'
@@ -302,8 +302,8 @@ export function AuthFlowVisualizer() {
               >
                 <ShieldCheck className="size-6" />
               </div>
-              <span className="text-[11px] font-mono font-bold text-white">OID Server</span>
-              <span className="text-[9.5px] font-mono text-emerald-400">auth.oid.local</span>
+              <span className="text-[11px] font-mono font-bold text-white">ID Server</span>
+              <span className="text-[9.5px] font-mono text-emerald-400">auth.id.local</span>
             </div>
 
             {/* Conduit 2 */}
