@@ -17,18 +17,16 @@ export function PortalHeader({ mode, onModeChange }: PortalHeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/30 bg-background/95 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-2 sm:py-2.5">
         {/* Brand Logo with Magnetic Interaction */}
         <MagneticButton strength={0.15}>
           <Link href="/" className="select-none flex items-center">
-            <Logo size={48} />
+            <Logo size={34} />
           </Link>
         </MagneticButton>
-        
 
- 
         {/* Action Controls & Mode Switcher */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
           {/* Smaller sliding mode toggle in navbar */}
           <div className="relative flex items-center bg-secondary/80 border border-border p-0.5 rounded-full w-24 h-7 text-[9px] font-mono select-none font-bold shadow-sm">
             <div 
@@ -52,7 +50,7 @@ export function PortalHeader({ mode, onModeChange }: PortalHeaderProps) {
             </button>
           </div>
 
-          <ThemeToggle />
+          <ThemeToggle className="size-8" />
 
           {user ? (
             <div className="flex items-center gap-3">
@@ -61,19 +59,19 @@ export function PortalHeader({ mode, onModeChange }: PortalHeaderProps) {
               </div>
               <MagneticButton strength={0.2}>
                 <Link href="/account">
-                  <Button size="sm" variant="secondary" className="px-3">
+                  <Button size="sm" variant="secondary" className="h-8 px-3 text-xs">
                     Account
                   </Button>
                 </Link>
               </MagneticButton>
-              <Button size="sm" variant="ghost" className="text-xs" onClick={() => logout()}>
+              <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => logout()}>
                 Sign out
               </Button>
             </div>
           ) : (
             <MagneticButton strength={0.22}>
               <Link href="/login">
-                <Button size="sm" className="rounded-full font-heading text-xs font-bold px-4 py-1.5 bg-foreground text-background hover:bg-foreground/90 transition-colors duration-300">
+                <Button size="sm" className="h-8 rounded-full font-heading text-xs font-bold px-3.5 bg-foreground text-background hover:bg-foreground/90 transition-colors duration-300">
                   Get Started
                 </Button>
               </Link>
