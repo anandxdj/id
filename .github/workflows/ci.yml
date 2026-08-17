@@ -236,17 +236,29 @@ jobs:
         run: pnpm build
 
   image:
-    name: image (production build)
+    name: image (build + publish)
+    # Frontend CI remains useful for Vercel, but it must not block publishing an
+    # otherwise valid backend image.
+    needs: backend
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       IMAGE_TAG: id-backend:ci
+      IMAGE_NAME: anando1/id-backend
     steps:
       - uses: actions/checkout@v4
 
+      - name: Calculate image version
+        id: version
+        run: |
+          # Keep the package's major/minor line and use GitHub's monotonically
+          # increasing workflow run number as the patch version.
+          base_version=$(node -p "require('./backend/package.json').version.split('.').slice(0, 2).join('.')")
+          version="${base_version}.${GITHUB_RUN_NUMBER}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "Publishing ${IMAGE_NAME}:${version}"
+
       - name: Build
-        # Build only — nothing is published. This exists so a change that breaks the
-        # runtime image surfaces here rather than at deploy time.
         run: docker build -f backend/Dockerfile -t "${IMAGE_TAG}" backend/
 
       - name: Assert the image ships nothing it should not
@@ -266,3 +278,20 @@ jobs:
             done
             echo "image contents OK"
           '
+
+      - name: Log in to Docker Hub
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Publish version and latest tags
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker tag "${IMAGE_TAG}" "${IMAGE_NAME}:${VERSION}"
+          docker tag "${IMAGE_TAG}" "${IMAGE_NAME}:latest"
+          docker push "${IMAGE_NAME}:${VERSION}"
+          docker push "${IMAGE_NAME}:latest"

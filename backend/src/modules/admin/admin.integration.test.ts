@@ -123,7 +123,7 @@ after(async () => {
     const users = await User.find({ email: { $in: emails } }).select('_id');
     await Session.deleteMany({ userId: { $in: users.map((u) => u._id) } });
     await User.deleteMany({ email: { $in: emails } });
-    await OAuthClient.deleteMany({ clientName: { $in: ['Admin Made', 'Native Guide', 'Rotate Me', 'Suspend Me'] } });
+    await OAuthClient.deleteMany({ clientName: { $in: ['Admin Made', 'Native Guide', 'Rotate Me', 'Suspend Me', 'Admin Details App'] } });
     await mongoose.disconnect();
     await disconnectRedis();
   }
@@ -303,6 +303,12 @@ test('getUser returns sessions, apps, and activity; metrics report totals', asyn
 
 test('getClient returns client details, user metrics, and config prompt', async (t) => {
   if (!available) return t.skip('Mongo/Redis not reachable');
+  const created = await jsonOf<{ data: { clientId: string; clientName: string } }>(
+    await as(adminToken)('/api/admin/clients', {
+      method: 'POST',
+      body: JSON.stringify({ clientName: 'Admin Details App', redirectUris: [REDIRECT] }),
+    }),
+  );
   const detail = await jsonOf<{
     data: {
       client: { clientId: string; clientName: string };
@@ -311,10 +317,10 @@ test('getClient returns client details, user metrics, and config prompt', async 
       activity: unknown[];
       configPrompt: string;
     };
-  }>(await as(adminToken)(`/api/admin/clients/${CLIENT.clientId}`));
+  }>(await as(adminToken)(`/api/admin/clients/${created.data.clientId}`));
 
-  assert.equal(detail.data.client.clientId, CLIENT.clientId);
-  assert.equal(detail.data.client.clientName, CLIENT.clientName);
+  assert.equal(detail.data.client.clientId, created.data.clientId);
+  assert.equal(detail.data.client.clientName, created.data.clientName);
   assert.ok(typeof detail.data.metrics.totalAuthorizedUsers === 'number');
   assert.ok(typeof detail.data.metrics.activeUsers24h === 'number');
   assert.ok(typeof detail.data.metrics.activeUsers7d === 'number');

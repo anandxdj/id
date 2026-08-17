@@ -66,6 +66,7 @@ export const EVENT_TYPES = [
   'admin.client.secret_rotated',
   'admin.client.suspended',
   'admin.client.unsuspended',
+  'admin.client.deleted',
 ] as const;
 
 export type EventType = (typeof EVENT_TYPES)[number];

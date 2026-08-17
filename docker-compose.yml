@@ -1,74 +1,28 @@
-# Local development datastores.
-#
-# ── Non-default ports, deliberately ──────────────────────────────────────────
-# This machine runs several stacks that already squat on 27017/6379, so ours are
-# offset by default and overridable via MONGO_PORT / REDIS_PORT. Sharing a port with
-# another project's database is worse than a startup error: the connection succeeds
-# and writes land in a stranger's server.
-#
-# ── Mongo is a SINGLE-MEMBER REPLICA SET ─────────────────────────────────────
-# Not for redundancy — a standalone mongod exposes neither multi-document transactions
-# nor change streams, both of which the identity flows want (atomic authorization-code
-# redemption, refresh-token rotation with reuse detection). One member is the cheapest
-# topology that turns those on.
-#
-# Note mongod runs on the SAME port inside and outside the container. That is not
-# incidental: a replica set member advertises its own address, and clients re-resolve
-# every connection against that advertised value. Map host 27018 to container 27017
-# while advertising `localhost:27017`, and the driver would discover "localhost:27017"
-# and cheerfully connect to whatever unrelated database is on the host's 27017. Keeping
-# the port identical on both sides makes the advertised address true from either side.
-#
-# Consequence: MONGO_URI must carry `?replicaSet=rs0`. If the backend is ever added to
-# this file, re-advertise the member as `mongo:27018` and update MONGO_URI to match.
-
+# Backend-only VPS stack. The frontend is deployed separately on Vercel,
+# MongoDB is hosted by Atlas, and Redis is the existing VPS container.
 services:
-  mongo:
-    image: mongo:7
-    container_name: id_mongo
-    command:
-      - "--replSet"
-      - "rs0"
-      - "--bind_ip_all"
-      - "--port"
-      - "${MONGO_PORT:-27018}"
+  backend:
+    image: anando1/id-backend:${BACKEND_VERSION:-latest}
+    pull_policy: always
+    container_name: id_backend
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      # Deployment endpoints come from the VPS .env file; they are never baked
+      # into the image or committed in this Compose file.
+      MONGO_URI: ${MONGO_URI:?Set MONGO_URI in the VPS .env file}
+      MONGO_DB_NAME: ${MONGO_DB_NAME:-id}
+      REDIS_URL: ${REDIS_URL:-redis://honcho-redis:6379}
     ports:
-      - "${MONGO_PORT:-27018}:${MONGO_PORT:-27018}"
-    volumes:
-      - id_mongo_data:/data/db
-    # Initiate on first boot, then behave as a normal liveness check. `rs.status()`
-    # throws until the set exists, which is what makes this idempotent across restarts.
-    healthcheck:
-      test: >
-        mongosh --port ${MONGO_PORT:-27018} --quiet --eval "
-          try { rs.status().ok }
-          catch (e) {
-            rs.initiate({
-              _id: 'rs0',
-              members: [{ _id: 0, host: 'localhost:${MONGO_PORT:-27018}' }]
-            }).ok
-          }
-        "
-      interval: 5s
-      timeout: 10s
-      retries: 20
-      start_period: 10s
+      - "4000:4000"
+    networks:
+      - default
+      - vps_redis
 
-  # Redis is a CACHE AND COUNTER layer, never a system of record. Losing it must
-  # degrade latency and rate-limit accuracy, never correctness: no session, refresh
-  # token, authorization code, or consent grant may live here as its only copy.
-  # See docs/plans/…-003 §3 D1 for the durability split.
-  redis:
-    image: redis:7-alpine
-    container_name: id_redis
-    # `--appendonly yes` so a restart does not silently reset every rate-limit and
-    # login-throttle counter, which would hand an attacker a fresh budget on demand.
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
-    ports:
-      - "${REDIS_PORT:-6380}:6379"
-    volumes:
-      - id_redis_data:/data
-
-volumes:
-  id_mongo_data:
-  id_redis_data:
+networks:
+  # This must be the network already attached to `honcho-redis`.
+  vps_redis:
+    external: true
+    name: ${VPS_REDIS_NETWORK:-honcho_default}
