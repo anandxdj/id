@@ -83,7 +83,7 @@ export function LoginForm() {
         </div>
 
         {error && (
-          <p className="border-2 border-danger bg-danger/10 px-3 py-2 font-mono text-xs font-bold text-danger">
+          <p role="alert" className="rounded-lg border border-danger/60 bg-danger/10 px-3 py-2 font-mono text-xs font-bold text-danger">
             {error}
           </p>
         )}
@@ -109,10 +109,12 @@ export function LoginForm() {
           </div>
           <div className="space-y-2">
             {connectors.map((c) => (
-              <a key={c.provider} href={connectorStartUrl(c.provider, returnTo)} className="block">
-                <Button type="button" variant="secondary" className="w-full">
-                  Continue with {c.displayName}
-                </Button>
+              <a
+                key={c.provider}
+                href={connectorStartUrl(c.provider, returnTo)}
+                className="flex h-10.5 w-full items-center justify-center rounded-xl border border-border/40 bg-secondary px-5 text-sm font-medium text-secondary-foreground shadow-sm transition-all hover:border-border hover:shadow-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                Continue with {c.displayName}
               </a>
             ))}
           </div>

@@ -38,7 +38,9 @@ function CallbackInner() {
   return (
     <Card>
       <CardTitle>{error ? 'Sign-in failed' : 'Signing you in…'}</CardTitle>
-      <CardDescription>{error ?? 'Completing authentication.'}</CardDescription>
+      <CardDescription role={error ? 'alert' : 'status'}>
+        {error ?? 'Completing authentication.'}
+      </CardDescription>
     </Card>
   );
 }

@@ -4,7 +4,7 @@ import { Logo } from '@/components/ui/logo';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden bg-background">
+    <div className="relative flex min-h-dvh flex-col overflow-x-clip bg-background">
       {/* brutalist dot-grid backdrop */}
       <div
         aria-hidden
@@ -17,7 +17,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       />
 
       {/* top bar: logo + theme toggle */}
-      <header className="relative z-10 flex items-center justify-between border-b-2 border-border px-6 py-3">
+      <header className="relative z-10 flex items-center justify-between border-b border-border px-4 py-3 sm:px-6">
         <Link href="/" className="select-none flex items-center">
           <Logo size={48} />
         </Link>
@@ -25,14 +25,18 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       </header>
 
       {/* centered content */}
-      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-12">
-        <p className="eyebrow mb-5 text-muted-foreground">[ SECURE_SSO · INTERNAL_ONLY ]</p>
-        {children}
+      <main className="relative z-10 flex flex-1 items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
+        <div className="w-full max-w-md">
+          <p className="eyebrow mb-5 text-center text-muted-foreground">
+            [ SECURE_SSO · INTERNAL_ONLY ]
+          </p>
+          {children}
+        </div>
       </main>
 
       {/* footer line */}
-      <footer className="relative z-10 border-t-2 border-border px-6 py-3">
-        <p className="eyebrow text-muted-foreground">
+      <footer className="relative z-10 border-t border-border px-4 py-3 sm:px-6">
+        <p className="eyebrow text-center text-muted-foreground sm:text-left">
           UNIVERSAL IDENTITY PROVIDER · OPENID CONNECT
         </p>
       </footer>

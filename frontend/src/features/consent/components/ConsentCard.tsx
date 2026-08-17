@@ -48,7 +48,7 @@ export function ConsentCard() {
     return (
       <Card variant="gooey">
         <CardTitle>Authorization error</CardTitle>
-        <CardDescription>{error}</CardDescription>
+        <CardDescription role="alert">{error}</CardDescription>
       </Card>
     );
   }

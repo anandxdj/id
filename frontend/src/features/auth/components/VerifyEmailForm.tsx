@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { AuthApi } from '@/features/auth/services/authApi';
 import { FragmentToken } from '@/lib/fragment-token';
 import { AUTH_COPY, ROUTES } from '@/lib/constants';
-import { Button } from '@/components/ui/button';
 import { Card, CardTitle, CardDescription } from '@/components/ui/card';
 
 type Status = 'pending' | 'ok' | 'error';
@@ -38,9 +38,12 @@ export function VerifyEmailForm() {
       <CardDescription>{message}</CardDescription>
       {status !== 'pending' && (
         <div className="mt-6 text-center">
-          <a href={ROUTES.LOGIN}>
-            <Button className="w-full">{status === 'ok' ? 'Sign in' : 'Back to sign in'}</Button>
-          </a>
+          <Link
+            href={ROUTES.LOGIN}
+            className="flex h-10.5 w-full items-center justify-center rounded-xl border border-transparent bg-brand px-5 text-sm font-medium text-brand-foreground shadow-sm transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            {status === 'ok' ? 'Sign in' : 'Back to sign in'}
+          </Link>
         </div>
       )}
     </Card>

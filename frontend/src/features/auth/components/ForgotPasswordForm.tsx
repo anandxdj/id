@@ -58,7 +58,7 @@ export function ForgotPasswordForm() {
           />
         </div>
         {error && (
-          <p className="border-2 border-danger bg-danger/10 px-3 py-2 font-mono text-xs font-bold text-danger">
+          <p role="alert" className="rounded-lg border border-danger/60 bg-danger/10 px-3 py-2 font-mono text-xs font-bold text-danger">
             {error}
           </p>
         )}

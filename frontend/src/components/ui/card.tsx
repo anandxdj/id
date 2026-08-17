@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type HTMLAttributes } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
@@ -10,6 +10,7 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 
 export function Card({ className, variant = 'standard', children, ...props }: CardProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
   if (variant === 'organic') {
     const hasOrganicShape = className?.includes('shape-organic-');
@@ -28,26 +29,28 @@ export function Card({ className, variant = 'standard', children, ...props }: Ca
   }
 
   if (variant === 'gooey') {
+    const animateBlobs = isHovered && !prefersReducedMotion;
+
     return (
       <div
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         className={cn(
-          'relative w-full border border-border/40 p-6 shadow-sm rounded-3xl overflow-hidden bg-card/40 select-none transition-all duration-300 hover:shadow-md',
+          'relative w-full overflow-hidden rounded-2xl border border-border/70 bg-card/90 p-6 shadow-brutal-sm backdrop-blur-xl transition-[border-color,box-shadow] duration-300 sm:p-7 hover:border-border hover:shadow-brutal',
           className
         )}
         {...props}
       >
         {/* Organic Gooey Backdrop inside the border bounds */}
         <div
-          className="absolute inset-0 z-0 pointer-events-none overflow-hidden"
+          className="pointer-events-none absolute inset-0 z-0 overflow-hidden opacity-55"
           style={{ filter: 'url(#gooey-global)' }}
         >
           {/* Main central blob */}
           <motion.div
             className="absolute bg-card inset-4 rounded-full"
             animate={
-              isHovered
+              animateBlobs
                 ? { scale: [1, 1.06, 0.96, 1], x: [0, 4, -4, 0], y: [0, -3, 3, 0] }
                 : { scale: 1, x: 0, y: 0 }
             }
@@ -57,7 +60,7 @@ export function Card({ className, variant = 'standard', children, ...props }: Ca
           <motion.div
             className="absolute bg-card size-36 rounded-full"
             animate={
-              isHovered
+              animateBlobs
                 ? { x: [0, -12, 6, 0], y: [0, 6, -10, 0], scale: [1, 1.15, 0.85, 1] }
                 : { x: 0, y: 0, scale: 1 }
             }
@@ -68,7 +71,7 @@ export function Card({ className, variant = 'standard', children, ...props }: Ca
           <motion.div
             className="absolute bg-card size-36 rounded-full"
             animate={
-              isHovered
+              animateBlobs
                 ? { x: [0, 10, -8, 0], y: [0, -10, 6, 0], scale: [1, 0.85, 1.15, 1] }
                 : { x: 0, y: 0, scale: 1 }
             }
@@ -79,7 +82,7 @@ export function Card({ className, variant = 'standard', children, ...props }: Ca
           <motion.div
             className="absolute bg-card size-36 rounded-full"
             animate={
-              isHovered
+              animateBlobs
                 ? { x: [0, -8, 10, 0], y: [0, 10, -6, 0], scale: [1, 1.1, 0.9, 1] }
                 : { x: 0, y: 0, scale: 1 }
             }
@@ -90,7 +93,7 @@ export function Card({ className, variant = 'standard', children, ...props }: Ca
           <motion.div
             className="absolute bg-card size-36 rounded-full"
             animate={
-              isHovered
+              animateBlobs
                 ? { x: [0, 12, -6, 0], y: [0, -6, 10, 0], scale: [1, 1.2, 0.85, 1] }
                 : { x: 0, y: 0, scale: 1 }
             }

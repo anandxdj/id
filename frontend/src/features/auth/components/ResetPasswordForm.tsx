@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { AuthApi } from '@/features/auth/services/authApi';
 import { FragmentToken } from '@/lib/fragment-token';
 import { AUTH_COPY, ROUTES } from '@/lib/constants';
@@ -52,9 +53,12 @@ export function ResetPasswordForm() {
         <CardTitle>Password updated</CardTitle>
         <CardDescription>{AUTH_COPY.RESET_OK}</CardDescription>
         <div className="mt-6">
-          <a href={ROUTES.LOGIN}>
-            <Button className="w-full">Sign in</Button>
-          </a>
+          <Link
+            href={ROUTES.LOGIN}
+            className="flex h-10.5 w-full items-center justify-center rounded-xl border border-transparent bg-brand px-5 text-sm font-medium text-brand-foreground shadow-sm transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            Sign in
+          </Link>
         </div>
       </Card>
     );
@@ -90,7 +94,7 @@ export function ResetPasswordForm() {
           />
         </div>
         {error && (
-          <p className="border-2 border-danger bg-danger/10 px-3 py-2 font-mono text-xs font-bold text-danger">
+          <p role="alert" className="rounded-lg border border-danger/60 bg-danger/10 px-3 py-2 font-mono text-xs font-bold text-danger">
             {error}
           </p>
         )}
