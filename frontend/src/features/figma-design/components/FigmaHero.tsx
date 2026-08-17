@@ -76,8 +76,8 @@ export function FigmaHero({
   const SecondaryIcon = content.secondaryCta.icon;
 
   return (
-    <section className={`relative w-full px-4 py-6 sm:px-6 lg:aspect-[941/418.6] lg:px-0 lg:py-0 ${className}`}>
-      <div className="relative flex flex-col items-center gap-8 lg:contents">
+    <section className={`relative w-full px-3 py-4 sm:px-6 sm:py-6 lg:aspect-[941/418.6] lg:px-0 lg:py-0 ${className}`}>
+      <div className="relative flex flex-col items-center gap-6 sm:gap-8 lg:contents">
         {/* LEFT: cream organic island */}
         <motion.div
           initial={{ opacity: 0, scale: 0.97, y: 15 }}
@@ -101,10 +101,10 @@ export function FigmaHero({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.25 }}
-                className="inline-flex w-fit select-none items-center gap-[0.25cqw] rounded-full border border-white/15 bg-white/10 dark:border-black/10 dark:bg-black/5 px-[1cqw] py-[0.62cqw] transition-transform duration-200 hover:scale-105"
+                className="inline-flex w-fit select-none items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1.5 transition-transform duration-200 hover:scale-105 dark:border-black/10 dark:bg-black/5 lg:gap-[0.25cqw] lg:px-[1cqw] lg:py-[0.62cqw]"
               >
-                <span className="size-[0.9cqw] rounded-full bg-zinc-100 dark:bg-zinc-900 animate-pulse" />
-                <span className="font-sans text-[1.75cqw] font-semibold leading-none tracking-wide text-zinc-100 dark:text-zinc-900">
+                <span className="size-1.5 animate-pulse rounded-full bg-zinc-100 dark:bg-zinc-900 lg:size-[0.9cqw]" />
+                <span className="font-sans text-[10px] font-semibold leading-none tracking-wide text-zinc-100 dark:text-zinc-900 lg:text-[1.75cqw]">
                   {content.pill}
                 </span>
               </motion.div>
@@ -119,7 +119,7 @@ export function FigmaHero({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  className="font-heading text-[7.38cqw] font-black leading-[1.18] tracking-tight text-zinc-50 dark:text-zinc-950"
+                  className="font-heading text-[clamp(2rem,7.38cqw,2.65rem)] font-black leading-[1.12] tracking-tight text-zinc-50 dark:text-zinc-950 lg:text-[7.38cqw] lg:leading-[1.18]"
                 >
                   {content.headline}
                 </motion.h1>
@@ -135,7 +135,7 @@ export function FigmaHero({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  className="max-w-[62.5cqw] text-[2.5cqw] font-normal leading-relaxed text-zinc-300 dark:text-zinc-600"
+                  className="max-w-[70cqw] text-[clamp(0.72rem,2.5cqw,0.9rem)] font-normal leading-relaxed text-zinc-300 dark:text-zinc-600 lg:max-w-[62.5cqw] lg:text-[2.5cqw]"
                 >
                   {content.description}
                 </motion.p>
@@ -149,11 +149,11 @@ export function FigmaHero({
                   <button
                     type="button"
                     onClick={onGetStarted}
-                    className="inline-flex h-[8.12cqw] cursor-pointer items-center gap-[1.1cqw] rounded-full bg-white text-zinc-950 shadow-md hover:bg-zinc-100 dark:bg-zinc-950 dark:text-white dark:hover:bg-zinc-800 px-[2.1cqw] font-semibold text-[2.2cqw] leading-none shadow-lg transition-all duration-150 active:scale-95"
+                    className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full bg-white px-3 font-semibold text-[11px] leading-none text-zinc-950 shadow-lg transition-all duration-150 hover:bg-zinc-100 active:scale-95 dark:bg-zinc-950 dark:text-white dark:hover:bg-zinc-800 lg:h-[8.12cqw] lg:gap-[1.1cqw] lg:px-[2.1cqw] lg:text-[2.2cqw]"
                   >
                     <span>Get Started</span>
-                    <span className="flex size-[4.4cqw] items-center justify-center rounded-full bg-black/10 text-black dark:bg-white/20 dark:text-white">
-                      <ArrowUpRight className="size-[2.9cqw]" />
+                    <span className="flex size-6 items-center justify-center rounded-full bg-black/10 text-black dark:bg-white/20 dark:text-white lg:size-[4.4cqw]">
+                      <ArrowUpRight className="size-3.5 lg:size-[2.9cqw]" />
                     </span>
                   </button>
                 </Link>
@@ -170,10 +170,10 @@ export function FigmaHero({
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ duration: 0.2 }}
-                      className="inline-flex cursor-pointer items-center gap-[1.2cqw] rounded-full font-semibold text-[2.2cqw] leading-none text-zinc-200 hover:text-white dark:text-zinc-900 dark:hover:text-black transition-all duration-150 active:scale-95"
+                      className="inline-flex cursor-pointer items-center gap-1.5 rounded-full font-semibold text-[11px] leading-none text-zinc-200 transition-all duration-150 hover:text-white active:scale-95 dark:text-zinc-900 dark:hover:text-black lg:gap-[1.2cqw] lg:text-[2.2cqw]"
                     >
                       <span>{content.secondaryCta.label}</span>
-                      <SecondaryIcon className="size-[2.4cqw] text-zinc-300 dark:text-zinc-700" />
+                      <SecondaryIcon className="size-3.5 text-zinc-300 dark:text-zinc-700 lg:size-[2.4cqw]" />
                     </motion.button>
                   </AnimatePresence>
                 </a>
@@ -181,7 +181,7 @@ export function FigmaHero({
             </div>
 
             {/* Spec footer row */}
-            <div className="mt-[8.09cqw] flex flex-wrap items-center gap-[2.8cqw] text-[1.6cqw] font-semibold leading-none text-zinc-300 dark:text-zinc-700">
+            <div className="mt-6 flex flex-wrap items-center gap-3 text-[9px] font-semibold leading-none text-zinc-300 dark:text-zinc-700 lg:mt-[8.09cqw] lg:gap-[2.8cqw] lg:text-[1.6cqw]">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={`badges-${mode}`}
@@ -189,11 +189,11 @@ export function FigmaHero({
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.25 }}
-                  className="flex flex-wrap items-center gap-[2.8cqw]"
+                  className="flex flex-wrap items-center gap-3 lg:gap-[2.8cqw]"
                 >
                   {content.badges.map((label) => (
-                    <div key={label} className="flex items-center gap-[1cqw] transition-transform duration-200 hover:scale-105">
-                      <Circle className="size-[2.46cqw] shrink-0 stroke-[1.75] text-zinc-200 dark:text-zinc-900" />
+                    <div key={label} className="flex items-center gap-1 transition-transform duration-200 hover:scale-105 lg:gap-[1cqw]">
+                      <Circle className="size-3 shrink-0 stroke-[1.75] text-zinc-200 dark:text-zinc-900 lg:size-[2.46cqw]" />
                       <span>{label}</span>
                     </div>
                   ))}

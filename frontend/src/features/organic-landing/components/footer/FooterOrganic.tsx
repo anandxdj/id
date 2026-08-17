@@ -83,14 +83,14 @@ export function FooterOrganic({ className = '' }: FooterOrganicProps) {
   ];
 
   return (
-    <footer className={`relative mx-auto max-w-[1440px] px-4 sm:px-6 py-4 select-none ${className}`}>
+    <footer className={`relative mx-auto max-w-[1440px] px-3 py-3 select-none sm:px-6 sm:py-4 ${className}`}>
       {/* Dark Organic Island Container with Custom foother.svg */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: '-40px' }}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full overflow-hidden rounded-[2.2rem] sm:rounded-[2.8rem] pt-8 sm:pt-10 pb-6 sm:pb-7 px-6 sm:px-10 md:px-12 text-white shadow-2xl"
+        className="relative w-full overflow-hidden rounded-[1.75rem] px-5 pb-6 pt-8 text-white shadow-2xl sm:rounded-[2.8rem] sm:px-10 sm:pb-7 sm:pt-10 md:px-12"
       >
         {/* Custom SVG Background */}
         <img
@@ -147,7 +147,7 @@ export function FooterOrganic({ className = '' }: FooterOrganicProps) {
           </div>
 
           {/* Column 2: Navigation Links (5 cols) */}
-          <div className="lg:col-span-5 grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-7 sm:grid-cols-4 sm:gap-6 lg:col-span-5">
             {FOOTER_COLUMNS.map((col) => (
               <div key={col.title} className="space-y-2.5">
                 <h5 className="font-heading font-bold text-xs text-zinc-950 dark:text-white">
@@ -200,9 +200,9 @@ export function FooterOrganic({ className = '' }: FooterOrganicProps) {
         </div>
 
         {/* Bottom Copyright & Status */}
-        <div className="relative z-10 mt-6 pt-3.5 border-t border-black/10 dark:border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10.5px] sm:text-[11px] text-zinc-600 dark:text-zinc-400">
+        <div className="relative z-10 mt-6 flex flex-col items-center justify-between gap-2 border-t border-black/10 pt-3.5 text-center text-[10.5px] text-zinc-600 dark:border-white/10 dark:text-zinc-400 sm:flex-row sm:text-left sm:text-[11px]">
           <p>© 2026 ID. Open source identity infrastructure.</p>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 sm:gap-4">
             <a href="https://github.com/anandxdj/id" target="_blank" rel="noreferrer" className="hover:text-zinc-950 dark:hover:text-white transition-colors">
               github.com/anandxdj/id
             </a>

@@ -44,7 +44,7 @@ export function PortalHeader({ mode, onModeChange }: PortalHeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/30 bg-background/95 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-2 sm:py-2.5">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-2 sm:px-6 sm:py-2.5">
         {/* Brand Logo with Magnetic Interaction */}
         <div className="flex items-center gap-6 lg:gap-8">
           <MagneticButton strength={0.15}>
@@ -68,9 +68,9 @@ export function PortalHeader({ mode, onModeChange }: PortalHeaderProps) {
         </div>
 
         {/* Action Controls, Socials & Mode Switcher */}
-        <div className="flex items-center gap-2.5 sm:gap-3.5">
+        <div className="flex min-w-0 items-center gap-1.5 sm:gap-3.5">
           {/* Social Links (GitHub & Twitter / X) */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="hidden items-center gap-2 sm:flex">
             <MagneticButton strength={0.2}>
               <a
                 href="https://github.com/anandxdj/id"
@@ -104,7 +104,7 @@ export function PortalHeader({ mode, onModeChange }: PortalHeaderProps) {
           <div className="h-4 w-px bg-border/60 hidden sm:block" />
 
           {/* Sliding mode toggle in navbar */}
-          <div className="relative flex items-center bg-secondary/80 border border-border p-0.5 rounded-full w-24 h-7 text-[9px] font-mono select-none font-bold shadow-sm">
+          <div className="relative hidden h-7 w-24 select-none items-center rounded-full border border-border bg-secondary/80 p-0.5 font-mono text-[9px] font-bold shadow-sm min-[380px]:flex">
             <div 
               className="absolute top-0.5 bottom-0.5 rounded-full bg-foreground shadow-sm transition-all duration-300"
               style={{
@@ -147,7 +147,7 @@ export function PortalHeader({ mode, onModeChange }: PortalHeaderProps) {
           ) : (
             <MagneticButton strength={0.22}>
               <Link href="/login">
-                <Button size="sm" className="h-8 rounded-full font-heading text-xs font-bold px-3.5 bg-foreground text-background hover:bg-foreground/90 transition-colors duration-300">
+                <Button size="sm" className="h-8 rounded-full bg-foreground px-2.5 font-heading text-[11px] font-bold text-background transition-colors duration-300 hover:bg-foreground/90 sm:px-3.5 sm:text-xs">
                   Get Started
                 </Button>
               </Link>

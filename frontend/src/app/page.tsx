@@ -89,7 +89,7 @@ export default function LandingPage() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="mx-auto max-w-[1400px] overflow-hidden px-4 sm:px-6"
+              className="mx-auto max-w-[1400px] overflow-hidden px-3 sm:px-6"
             >
               <AuthFlowTerminal />
             </motion.section>
@@ -99,9 +99,9 @@ export default function LandingPage() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 15 }}
-              className="mx-auto max-w-[1400px] px-4 sm:px-6"
+              className="mx-auto max-w-[1400px] px-3 sm:px-6"
             >
-              <div className="rounded-2xl border border-border bg-card p-6 text-left shadow-sm">
+              <div className="rounded-2xl border border-border bg-card p-4 text-left shadow-sm sm:p-6">
                 <h2 className="mb-2 flex items-center gap-2 font-heading text-sm font-bold text-foreground">
                   <Terminal className="size-4 text-emerald-500 dark:text-emerald-400" /> API Playground
                 </h2>
@@ -124,8 +124,8 @@ export default function LandingPage() {
               exit={{ opacity: 0, height: 0 }}
               className="overflow-hidden border-y border-border bg-muted/30"
             >
-              <div className="mx-auto max-w-7xl px-6 py-12">
-                <div className="mb-6 flex items-center justify-between">
+              <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
+                <div className="mb-6 flex items-start justify-between gap-4">
                   <div>
                     <h2 className="font-heading text-lg font-bold text-foreground">App Ecosystem Consents</h2>
                     <p className="mt-1 text-xs text-muted-foreground">Review permissions and disconnect apps you no longer trust.</p>

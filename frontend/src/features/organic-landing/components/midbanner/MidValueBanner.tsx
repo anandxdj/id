@@ -29,14 +29,14 @@ export const VALUE_PROPS = [
 
 export function MidValueBanner() {
   return (
-    <section className="relative mx-auto max-w-[1600px] px-4 sm:px-8 py-0 select-none">
+    <section className="relative mx-auto max-w-[1600px] px-3 py-0 select-none sm:px-8">
       {/* Dark Organic Blob Island Container */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: '-50px' }}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full aspect-[901/151] min-h-[100px] md:min-h-[120px] flex items-center justify-center p-3 sm:p-4 md:p-5 lg:px-10 lg:py-2 select-none"
+        className="relative flex min-h-0 w-full items-center justify-center px-5 py-9 select-none sm:px-7 sm:py-8 md:py-7 lg:aspect-[901/151] lg:min-h-[120px] lg:px-10 lg:py-2"
       >
         {/* Background SVG */}
         <img
@@ -73,7 +73,7 @@ export function MidValueBanner() {
                 transition: { staggerChildren: 0.08 },
               },
             }}
-            className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-3"
+            className="grid grid-cols-2 gap-4 sm:gap-3 md:grid-cols-4 lg:col-span-8"
           >
             {VALUE_PROPS.map((item) => {
               const Icon = item.icon;

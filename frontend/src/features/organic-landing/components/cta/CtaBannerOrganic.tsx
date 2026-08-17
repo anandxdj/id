@@ -12,14 +12,14 @@ interface CtaBannerOrganicProps {
 
 export function CtaBannerOrganic({ onGetStarted }: CtaBannerOrganicProps) {
   return (
-    <section className="relative mx-auto max-w-[1400px] px-4 sm:px-8 py-1 sm:py-2">
+    <section className="relative mx-auto max-w-[1400px] px-3 py-1 sm:px-8 sm:py-2">
       {/* 4th Section Organic Island Container */}
       <motion.div
         initial={{ opacity: 0, y: 25 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: '-50px' }}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full min-h-[180px] sm:min-h-[200px] md:min-h-[220px] lg:aspect-[880/135] flex items-center justify-between px-6 sm:px-12 md:px-16 lg:px-20 py-8 sm:py-10 md:py-8 select-none"
+        className="relative flex min-h-[210px] w-full items-center justify-between px-6 py-10 select-none sm:min-h-[200px] sm:px-12 sm:py-10 md:min-h-[220px] md:px-16 md:py-8 lg:aspect-[880/135] lg:px-20"
       >
         {/* Background SVG */}
         <img

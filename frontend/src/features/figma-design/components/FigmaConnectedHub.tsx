@@ -183,7 +183,7 @@ export function FigmaConnectedHub({ mode = 'user' }: FigmaConnectedHubProps) {
       <HubCore className="mx-auto mb-4 aspect-[512/348] w-full max-w-[420px] lg:absolute lg:inset-0 lg:m-0 lg:aspect-auto lg:max-w-none lg:size-full" />
 
       {/* 5 zero-gravity floating satellite cards */}
-      <div className="relative z-20 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:contents">
+      <div className="relative z-20 grid grid-cols-2 gap-2.5 sm:gap-3 lg:contents">
         {HUB_SLOTS.map((slot) => {
           const cardData = slot[mode] || slot.user;
           const Icon = cardData.icon;
@@ -198,7 +198,7 @@ export function FigmaConnectedHub({ mode = 'user' }: FigmaConnectedHubProps) {
                 delay: slot.delay,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className={`@container group relative cursor-pointer lg:absolute ${slot.box}`}
+              className={`@container group relative min-h-28 cursor-pointer last:col-span-2 sm:last:col-span-1 lg:absolute lg:min-h-0 ${slot.box}`}
             >
               <motion.div
                 whileHover={{
@@ -224,16 +224,16 @@ export function FigmaConnectedHub({ mode = 'user' }: FigmaConnectedHubProps) {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -6 }}
                       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                      className="flex h-full items-center gap-[5cqw] px-[6cqw] py-[7cqw]"
+                      className="flex h-full items-center gap-2.5 px-3 py-4 lg:gap-[5cqw] lg:px-[6cqw] lg:py-[7cqw]"
                     >
-                      <div className="flex size-[9cqw] shrink-0 items-center justify-center rounded-full bg-white/10 dark:bg-black/5 transition-transform duration-200 group-hover:scale-110 group-hover:bg-white/20 dark:group-hover:bg-black/10">
-                        <Icon className="size-[5.5cqw] stroke-[1.8] text-zinc-100 dark:text-zinc-950" />
+                      <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white/10 transition-transform duration-200 group-hover:scale-110 group-hover:bg-white/20 dark:bg-black/5 dark:group-hover:bg-black/10 lg:size-[9cqw]">
+                        <Icon className="size-3.5 stroke-[1.8] text-zinc-100 dark:text-zinc-950 lg:size-[5.5cqw]" />
                       </div>
                       <div className="min-w-0">
-                        <p className="font-heading text-[5.4cqw] font-bold leading-tight text-zinc-50 dark:text-zinc-950">
+                        <p className="font-heading text-[11px] font-bold leading-tight text-zinc-50 dark:text-zinc-950 sm:text-xs lg:text-[5.4cqw]">
                           {cardData.title}
                         </p>
-                        <p className="mt-[1cqw] text-[4.5cqw] font-normal leading-snug text-zinc-300 dark:text-zinc-600">
+                        <p className="mt-1 text-[9px] font-normal leading-snug text-zinc-300 dark:text-zinc-600 sm:text-[10px] lg:mt-[1cqw] lg:text-[4.5cqw]">
                           {cardData.desc}
                         </p>
                       </div>

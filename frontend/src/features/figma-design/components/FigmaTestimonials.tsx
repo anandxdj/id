@@ -69,7 +69,7 @@ export function FigmaTestimonials({ className = '' }: { className?: string }) {
 
   return (
     <section
-      className={`relative w-full select-none px-4 py-6 sm:px-6 lg:aspect-[941/167.3] lg:px-0 lg:py-0 ${className}`}
+      className={`relative w-full select-none px-3 py-4 sm:px-6 sm:py-6 lg:aspect-[941/167.3] lg:px-0 lg:py-0 ${className}`}
     >
       <motion.div
         initial={{ opacity: 0, y: 25 }}
@@ -97,7 +97,7 @@ export function FigmaTestimonials({ className = '' }: { className?: string }) {
               return (
                 <div
                   key={item.id}
-                  className={`@container relative z-10 lg:absolute ${item.box}`}
+                  className={`@container relative z-10 ${isSelected ? 'block' : 'hidden'} md:block lg:absolute ${item.box}`}
                 >
                   <motion.div
                     onMouseEnter={() => setHoveredCard(idx)}
@@ -112,7 +112,7 @@ export function FigmaTestimonials({ className = '' }: { className?: string }) {
                     animate={{
                       y: isSelected && !isHovered ? -2 : 0,
                     }}
-                    className={`group relative flex min-h-[220px] cursor-pointer select-none flex-col justify-between p-6 lg:min-h-0 lg:size-full lg:p-[7.4cqw] ${item.floatClass}`}
+                    className={`group relative flex min-h-[210px] cursor-pointer select-none flex-col justify-between p-6 sm:min-h-[220px] lg:min-h-0 lg:size-full lg:p-[7.4cqw] ${item.floatClass}`}
                   >
                     {/* Handcrafted Organic Squircle Vector Background */}
                     <svg
@@ -238,4 +238,3 @@ export function FigmaTestimonials({ className = '' }: { className?: string }) {
     </section>
   );
 }
-

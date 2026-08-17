@@ -73,14 +73,14 @@ interface AppsConsoleOrganicProps {
 
 export function AppsConsoleOrganic({ onExplore, onCardClick }: AppsConsoleOrganicProps) {
   return (
-    <section className="relative mx-auto max-w-[1600px] px-2 sm:px-6 py-0">
+    <section className="relative mx-auto max-w-[1600px] px-2 py-0 sm:px-6">
       {/* 2nd Section Organic Island Container */}
       <motion.div
         initial={{ opacity: 0, y: 25 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: '-50px' }}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full aspect-[910/293] min-h-[300px] md:min-h-[340px] flex items-center justify-center p-3 sm:p-5 md:p-6 lg:px-12 lg:py-2.5 select-none"
+        className="relative flex min-h-0 w-full items-center justify-center px-3 py-10 select-none sm:px-5 sm:py-12 md:px-6 lg:aspect-[910/293] lg:min-h-[340px] lg:px-12 lg:py-2.5"
       >
         {/* Background SVG */}
         <img
@@ -91,7 +91,7 @@ export function AppsConsoleOrganic({ onExplore, onCardClick }: AppsConsoleOrgani
         />
 
         {/* Inner Content Grid */}
-        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-8 items-center w-full px-3 sm:px-6">
+        <div className="relative z-10 grid w-full grid-cols-1 items-center gap-6 px-3 sm:px-6 lg:grid-cols-12 lg:gap-8">
           {/* Left Column: Heading & Value Prop (4 cols) */}
           <div className="lg:col-span-4 space-y-2.5">
             <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-white/10 border border-white/15 dark:bg-black/5 dark:border-black/10 select-none w-fit transition-transform duration-200 hover:scale-105">
@@ -139,7 +139,7 @@ export function AppsConsoleOrganic({ onExplore, onCardClick }: AppsConsoleOrgani
                   },
                 },
               }}
-              className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5"
+              className="grid grid-cols-2 gap-2 sm:gap-2.5 md:grid-cols-4"
             >
               {CONSOLE_ITEMS.map((item) => {
                 const Icon = item.icon;
@@ -160,7 +160,7 @@ export function AppsConsoleOrganic({ onExplore, onCardClick }: AppsConsoleOrgani
                     <TiltCard
                       maxTilt={4.5}
                       onClick={() => onCardClick?.(item.id)}
-                      className="p-3 sm:p-3.5 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:bg-zinc-800/90 dark:bg-white/90 dark:border-zinc-200/90 dark:hover:bg-white flex flex-col justify-between cursor-pointer hover:shadow-xl transition-all duration-200 group min-h-[110px] sm:min-h-[118px]"
+                      className="group flex min-h-[104px] cursor-pointer flex-col justify-between rounded-xl border border-zinc-800 bg-zinc-900/90 p-2.5 transition-all duration-200 hover:bg-zinc-800/90 hover:shadow-xl sm:min-h-[118px] sm:rounded-2xl sm:p-3.5 dark:border-zinc-200/90 dark:bg-white/90 dark:hover:bg-white"
                     >
                       <div>
                         <Icon className="size-4 sm:size-4.5 text-zinc-100 dark:text-zinc-950 mb-1.5 stroke-[1.75] transition-transform duration-200 group-hover:scale-115 group-hover:rotate-6" />

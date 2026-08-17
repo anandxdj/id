@@ -40,14 +40,14 @@ export function CorePillarsOrganic({
   className = '',
 }: CorePillarsOrganicProps) {
   return (
-    <section className={`relative mx-auto max-w-[1600px] px-4 sm:px-8 py-0 ${className}`}>
+    <section className={`relative mx-auto max-w-[1600px] px-3 py-0 sm:px-8 ${className}`}>
       {/* Dark Organic Blob Island Container */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: '-50px' }}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full aspect-[901/151] min-h-[110px] md:min-h-[130px] flex items-center justify-center p-3 sm:p-4 md:p-5 lg:px-10 lg:py-2 select-none"
+        className="relative flex min-h-0 w-full items-center justify-center px-4 py-9 select-none sm:px-6 sm:py-8 md:py-6 lg:aspect-[901/151] lg:min-h-[130px] lg:px-10 lg:py-2"
       >
         {/* Background SVG */}
         <img
@@ -71,7 +71,7 @@ export function CorePillarsOrganic({
               },
             },
           }}
-          className="relative z-10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 w-full px-3 sm:px-6 divide-y sm:divide-y-0 lg:divide-x divide-black/10 dark:divide-white/10"
+          className="relative z-10 grid w-full grid-cols-2 divide-black/10 px-1 dark:divide-white/10 sm:px-6 md:grid-cols-3 lg:grid-cols-5 lg:divide-x"
         >
           {CORE_PILLARS.map((pillar) => {
             const Icon = pillar.icon;
@@ -92,7 +92,7 @@ export function CorePillarsOrganic({
                   y: -2,
                   transition: { type: 'spring', stiffness: 400, damping: 18 },
                 }}
-                className="flex flex-col items-start justify-start p-2.5 sm:p-3 lg:px-5 select-none group cursor-pointer"
+                className="group flex cursor-pointer select-none flex-col items-start justify-start border-b border-black/10 p-3 dark:border-white/10 even:border-l last:col-span-2 last:border-b-0 last:border-l-0 last:items-center last:text-center sm:last:col-span-1 sm:last:items-start sm:last:text-left md:[&:nth-child(4)]:border-b-0 lg:border-b-0 lg:border-l-0 lg:px-5"
               >
                 <div className="mb-2 text-zinc-900 dark:text-white transition-transform duration-200 group-hover:scale-115 group-hover:rotate-6">
                   <Icon className="size-5 stroke-[1.5]" />

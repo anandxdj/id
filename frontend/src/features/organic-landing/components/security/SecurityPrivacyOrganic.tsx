@@ -37,7 +37,7 @@ export function SecurityPrivacyOrganic() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: '-50px' }}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full aspect-[889/215] min-h-[250px] md:min-h-[280px] lg:min-h-[300px] flex items-center justify-center p-4 sm:p-5 md:p-6 lg:px-12 lg:py-2.5 select-none"
+        className="relative flex min-h-0 w-full items-center justify-center px-5 py-10 select-none sm:px-5 sm:py-12 md:px-6 lg:aspect-[889/215] lg:min-h-[300px] lg:px-12 lg:py-2.5"
       >
         {/* Background SVG */}
         <img
@@ -50,7 +50,7 @@ export function SecurityPrivacyOrganic() {
         {/* Inner Content: 3 Columns */}
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-center w-full px-3 sm:px-6">
           {/* Left Column: 3D Clay Lock Graphic */}
-          <div className="lg:col-span-4 flex items-center justify-center">
+          <div className="hidden items-center justify-center sm:flex lg:col-span-4">
             <ClayLock3D />
           </div>
 
