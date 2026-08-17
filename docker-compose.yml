@@ -5,6 +5,8 @@ services:
     image: anando1/id-backend:${BACKEND_VERSION:-latest}
     pull_policy: always
     container_name: id_backend
+    restart: unless-stopped
+    mem_limit: 512m
     env_file:
       - .env
     environment:
@@ -15,14 +17,20 @@ services:
       MONGO_URI: ${MONGO_URI:?Set MONGO_URI in the VPS .env file}
       MONGO_DB_NAME: ${MONGO_DB_NAME:-id}
       REDIS_URL: ${REDIS_URL:-redis://honcho-redis:6379}
-    ports:
-      - "4000:4000"
     networks:
-      - default
-      - vps_redis
+      - proxy
+      - honcho_internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.id-backend.rule=Host(`id-backend.anands.dev`)"
+      - "traefik.http.routers.id-backend.entrypoints=web"
+      - "traefik.http.services.id-backend.loadbalancer.server.port=4000"
+      - "traefik.docker.network=proxy"
 
 networks:
-  # This must be the network already attached to `honcho-redis`.
-  vps_redis:
+  # Traefik discovers the backend over this network.
+  proxy:
     external: true
-    name: ${VPS_REDIS_NETWORK:-honcho_default}
+  # The existing `honcho-redis` container is reachable on this network.
+  honcho_internal:
+    external: true

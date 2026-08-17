@@ -20,6 +20,9 @@ cert
 # dist/ — cheaper and harder to get wrong than deleting compiled tests afterwards.
 **/*.test.ts
 src/common/testing
+# Benchmarks depend on the test harness above and are development-only. Keeping them
+# out also prevents their compiled output from entering the production image.
+scripts/bench-*.ts
 
 # No role at runtime.
 .git
