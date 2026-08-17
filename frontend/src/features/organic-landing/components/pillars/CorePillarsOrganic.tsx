@@ -7,28 +7,28 @@ import { Lock, ShieldCheck, Code2, Sliders, LineChart } from 'lucide-react';
 export const CORE_PILLARS = [
   {
     icon: Lock,
-    title: 'Self-Hosted Freedom',
-    desc: 'Host on your infrastructure and maintain full control.',
+    title: 'Self-hosted control',
+    desc: 'Run identity on infrastructure and databases you operate.',
   },
   {
     icon: ShieldCheck,
-    title: 'Enterprise Security',
-    desc: 'Industry best practices and regular updates.',
+    title: 'Standards-based SSO',
+    desc: 'Use OpenID Connect, PKCE, discovery, and signed ID tokens.',
   },
   {
     icon: Code2,
-    title: 'Developer Friendly',
-    desc: 'Clear docs, SDKs, and extensible APIs.',
+    title: 'Centralized access',
+    desc: 'Give every internal app one place to authenticate users.',
   },
   {
     icon: Sliders,
-    title: 'Highly Customizable',
-    desc: 'Adapt flows, branding, and policies your way.',
+    title: 'Consent by design',
+    desc: 'Share profile and email claims only after user approval.',
   },
   {
     icon: LineChart,
-    title: 'Built to Scale',
-    desc: 'From startups to enterprises, we scale with you.',
+    title: 'Operator controls',
+    desc: 'Manage users, OAuth clients, sessions, and activity centrally.',
   },
 ];
 

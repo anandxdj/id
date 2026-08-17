@@ -103,9 +103,9 @@ export default function LandingPage() {
             >
               <div className="rounded-2xl border border-border bg-card p-4 text-left shadow-sm sm:p-6">
                 <h2 className="mb-2 flex items-center gap-2 font-heading text-sm font-bold text-foreground">
-                  <Terminal className="size-4 text-emerald-500 dark:text-emerald-400" /> API Playground
+                  <Terminal className="size-4 text-emerald-500 dark:text-emerald-400" /> Token exchange example
                 </h2>
-                <p className="mb-4 text-xs text-muted-foreground">Copy your authorization endpoints to wire your SDK integrations.</p>
+                <p className="mb-4 text-xs text-muted-foreground">Exchange a one-time authorization code after validating its PKCE verifier.</p>
                 <pre className="overflow-x-auto rounded-lg border border-border bg-muted/60 p-3 font-mono text-[11px] text-emerald-600 dark:bg-slate-900 dark:text-emerald-400">{`curl -X POST https://id.anand.dev/oauth/token \\\
   -d "grant_type=authorization_code" \\\
   -d "client_id=acme_app" \\\
@@ -127,8 +127,8 @@ export default function LandingPage() {
               <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
                 <div className="mb-6 flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="font-heading text-lg font-bold text-foreground">App Ecosystem Consents</h2>
-                    <p className="mt-1 text-xs text-muted-foreground">Review permissions and disconnect apps you no longer trust.</p>
+                    <h2 className="font-heading text-lg font-bold text-foreground">Connected application access</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">Review granted permissions and disconnect applications you no longer use.</p>
                   </div>
                   <button
                     type="button"

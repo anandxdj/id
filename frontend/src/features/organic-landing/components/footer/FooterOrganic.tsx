@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ArrowUpRight, MessageSquare, Mail, Terminal } from 'lucide-react';
+import { ArrowUpRight, Mail, Terminal } from 'lucide-react';
 import { MagneticButton } from '@/components/ui/gooey';
 
 function GithubIcon({ className = 'size-4' }: { className?: string }) {
@@ -31,53 +31,41 @@ interface FooterOrganicProps {
 }
 
 export function FooterOrganic({ className = '' }: FooterOrganicProps) {
-  const [email, setEmail] = useState('');
-  const [subscribed, setSubscribed] = useState(false);
-
-  const handleSubscribe = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email) {
-      setSubscribed(true);
-      setTimeout(() => setSubscribed(false), 3000);
-      setEmail('');
-    }
-  };
-
   const FOOTER_COLUMNS = [
     {
       title: 'Product',
       links: [
-        { label: 'Features', href: '#features' },
-        { label: 'Security', href: '#security' },
-        { label: 'Pricing', href: '#pricing' },
-        { label: 'Changelog', href: '#changelog' },
+        { label: 'Account overview', href: '/account' },
+        { label: 'Connected apps', href: '/account/apps' },
+        { label: 'Active sessions', href: '/account/security' },
+        { label: 'Profile', href: '/account/profile' },
       ],
     },
     {
-      title: 'Resources',
+      title: 'Developers',
       links: [
-        { label: 'Documentation', href: '#docs' },
-        { label: 'Guides', href: '#guides' },
-        { label: 'API Reference', href: '#api' },
-        { label: 'Blog', href: '#blog' },
+        { label: 'OIDC features', href: '#features' },
+        { label: 'Integration overview', href: '#docs' },
+        { label: 'Security model', href: '#security' },
+        { label: 'Source code', href: 'https://github.com/anandxdj/id' },
       ],
     },
     {
-      title: 'Community',
+      title: 'Operations',
+      links: [
+        { label: 'Admin overview', href: '/admin' },
+        { label: 'Users', href: '/admin/users' },
+        { label: 'OAuth clients', href: '/admin/apps' },
+        { label: 'Register a client', href: '/admin/apps/new' },
+      ],
+    },
+    {
+      title: 'Project',
       links: [
         { label: 'GitHub', href: 'https://github.com/anandxdj/id' },
-        { label: 'Twitter / X', href: 'https://x.com/anandxdj' },
+        { label: 'Issues', href: 'https://github.com/anandxdj/id/issues' },
         { label: 'Discussions', href: 'https://github.com/anandxdj/id/discussions' },
-        { label: 'Contributing', href: 'https://github.com/anandxdj/id' },
-      ],
-    },
-    {
-      title: 'Legal',
-      links: [
-        { label: 'Privacy Policy', href: '#privacy' },
-        { label: 'Terms of Service', href: '#terms' },
-        { label: 'Data Deletion', href: '#deletion' },
-        { label: 'License', href: '#license' },
+        { label: 'README', href: 'https://github.com/anandxdj/id#readme' },
       ],
     },
   ];
@@ -117,7 +105,7 @@ export function FooterOrganic({ className = '' }: FooterOrganicProps) {
             </Link>
 
             <p className="text-[11px] sm:text-xs text-zinc-600 dark:text-zinc-400 max-w-xs leading-relaxed">
-              A self-hosted OpenID Connect provider for modern applications.
+              A self-hosted OpenID Connect provider for universal sign-in across internal applications.
             </p>
 
             {/* Social Icons with Magnetic Hover */}
@@ -169,33 +157,28 @@ export function FooterOrganic({ className = '' }: FooterOrganicProps) {
             ))}
           </div>
 
-          {/* Column 3: Newsletter (4 cols) */}
+          {/* Column 3: Integration handoff (4 cols) */}
           <div className="lg:col-span-4 rounded-2xl bg-black/5 border border-black/10 dark:bg-[#191919] dark:border-white/5 p-4 sm:p-5 space-y-2">
-            <h5 className="font-heading font-bold text-xs sm:text-sm text-zinc-950 dark:text-white">Stay in the loop</h5>
-            <p className="text-[10.5px] sm:text-[11px] text-zinc-600 dark:text-zinc-400 leading-snug">Get updates on new features and releases.</p>
-
-            <form onSubmit={handleSubscribe} className="relative flex items-center mt-2.5">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Your email"
-                className="w-full rounded-full bg-white border border-zinc-300 px-3.5 py-2 text-xs text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-500 dark:bg-[#0E0E0E] dark:border-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-zinc-600 pr-10"
-              />
-              <button
-                type="submit"
-                aria-label="Subscribe"
-                className="cursor-pointer absolute right-1 size-6.5 rounded-full bg-zinc-950 text-white dark:bg-[#F3F3F2] dark:text-zinc-950 flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xs"
+            <h5 className="font-heading font-bold text-xs sm:text-sm text-zinc-950 dark:text-white">Connect an application</h5>
+            <p className="text-[10.5px] sm:text-[11px] text-zinc-600 dark:text-zinc-400 leading-snug">
+              Register an OAuth client, then configure your app from the provider&apos;s discovery metadata.
+            </p>
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Link
+                href="/admin/apps/new"
+                className="inline-flex items-center gap-1.5 rounded-full bg-zinc-950 px-3 py-2 text-[10.5px] font-bold text-white transition-transform hover:scale-[1.02] dark:bg-white dark:text-zinc-950"
               >
-                <ArrowUpRight className="size-3.5" />
-              </button>
-            </form>
-
-            {subscribed && (
-              <p className="text-[10.5px] text-emerald-500 dark:text-emerald-400 font-medium animate-pulse">
-                ✓ Thanks for subscribing!
-              </p>
-            )}
+                Register client <ArrowUpRight className="size-3" />
+              </Link>
+              <a
+                href="https://github.com/anandxdj/id#readme"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-full border border-black/10 px-3 py-2 text-[10.5px] font-bold text-zinc-800 transition-colors hover:bg-black/5 dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/5"
+              >
+                Read setup guide
+              </a>
+            </div>
           </div>
         </div>
 

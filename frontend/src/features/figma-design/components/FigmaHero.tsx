@@ -17,48 +17,48 @@ interface FigmaHeroProps {
 
 const HERO_CONTENT = {
   user: {
-    pill: 'Sovereign Identity • FIDO2 Passkeys',
+    pill: 'One account • Every internal app',
     headline: (
       <>
-        Your identity.
+        One account.
         <br />
-        Your rules.
+        Every app.
         <br />
-        One login for
+        You stay in
         <br />
-        everything.
+        control.
       </>
     ),
     description:
-      'Take complete control of your login credentials. Seamlessly access connected apps with biometric passkeys while maintaining granular 1-click data consent.',
+      'Sign in once to your internal apps. Review what each app can access, manage active sessions, and revoke access whenever you need to.',
+    primaryCta: 'Sign in',
     secondaryCta: {
       label: 'How It Works',
       href: '#features',
       icon: Sparkles,
     },
-    badges: ['Passwordless', 'Zero Tracking', 'Data Sovereignty'],
+    badges: ['Single sign-on', 'Clear consent', 'Session control'],
   },
   dev: {
-    pill: 'OpenID Connect • Built for Scale',
+    pill: 'Self-hosted OpenID Connect • PKCE',
     headline: (
       <>
-        Authentication
+        One identity
         <br />
-        done right.
+        layer for every
         <br />
-        OpenID Connect
-        <br />
-        made simple.
+        internal app.
       </>
     ),
     description:
-      'ID gives you a pure, standards-compliant identity platform to power SSO, manage users, and protect access—all for you to own.',
+      'Connect applications through standard OIDC discovery, Authorization Code with PKCE, RS256 ID tokens, and scope-aware userinfo.',
+    primaryCta: 'Open console',
     secondaryCta: {
       label: 'View Docs',
       href: '#docs',
       icon: FileText,
     },
-    badges: ['Self-Hosted', 'Open Standards', 'Zero Telemetry'],
+    badges: ['Self-hosted', 'OIDC standard', 'Admin managed'],
   },
 };
 
@@ -151,7 +151,7 @@ export function FigmaHero({
                     onClick={onGetStarted}
                     className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full bg-white px-3 font-semibold text-[11px] leading-none text-zinc-950 shadow-lg transition-all duration-150 hover:bg-zinc-100 active:scale-95 dark:bg-zinc-950 dark:text-white dark:hover:bg-zinc-800 lg:h-[8.12cqw] lg:gap-[1.1cqw] lg:px-[2.1cqw] lg:text-[2.2cqw]"
                   >
-                    <span>Get Started</span>
+                    <span>{content.primaryCta}</span>
                     <span className="flex size-6 items-center justify-center rounded-full bg-black/10 text-black dark:bg-white/20 dark:text-white lg:size-[4.4cqw]">
                       <ArrowUpRight className="size-3.5 lg:size-[2.9cqw]" />
                     </span>

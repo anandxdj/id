@@ -34,12 +34,12 @@ export function CtaBannerOrganic({ onGetStarted }: CtaBannerOrganicProps) {
           {/* Left Column: Heading & Subtitle */}
           <div className="space-y-1.5 max-w-md text-center md:text-left">
             <h2 className="font-heading text-lg sm:text-xl md:text-[24px] lg:text-[28px] font-black tracking-tight text-zinc-50 dark:text-zinc-950 leading-[1.15]">
-              Ready to take control
+              One identity for
               <br />
-              of identity?
+              every internal app.
             </h2>
             <p className="text-[11.5px] sm:text-xs text-zinc-300 dark:text-zinc-600 font-normal leading-relaxed">
-              Get started with ID and give your users a secure, seamless sign-in experience.
+              Sign in to manage your account, or connect an application through standard OpenID Connect.
             </p>
           </div>
 
@@ -51,7 +51,7 @@ export function CtaBannerOrganic({ onGetStarted }: CtaBannerOrganicProps) {
                 onClick={onGetStarted}
                 className="cursor-pointer inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full bg-white text-zinc-950 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-white dark:hover:bg-zinc-800 font-bold text-xs sm:text-sm shadow-lg transition-all duration-150 active:scale-95"
               >
-                <span>Get Started Now</span>
+                <span>Sign in to ID</span>
                 <ArrowUpRight className="size-4" />
               </button>
             </MagneticButton>

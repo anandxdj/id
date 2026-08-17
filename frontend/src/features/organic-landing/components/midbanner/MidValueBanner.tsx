@@ -7,23 +7,23 @@ import { Zap, Shield, EyeOff, User } from 'lucide-react';
 export const VALUE_PROPS = [
   {
     icon: Zap,
-    title: 'Blazing Fast',
-    desc: 'Optimized for speed and low latency.',
+    title: 'Authorization Code + PKCE',
+    desc: 'S256 proof keys protect every authorization-code exchange.',
   },
   {
     icon: Shield,
-    title: 'Enterprise Ready',
-    desc: 'Scalable, reliable and ready for production.',
+    title: 'RS256 verification',
+    desc: 'Applications verify ID tokens through published JWKS.',
   },
   {
     icon: EyeOff,
-    title: 'Privacy First',
-    desc: 'Minimal data collection. Maximum privacy.',
+    title: 'Scope-aware claims',
+    desc: 'Profile and email data are returned only when granted.',
   },
   {
     icon: User,
-    title: 'User Empowerment',
-    desc: 'Users control their data and identity.',
+    title: 'Revocable access',
+    desc: 'Users can disconnect apps and terminate active sessions.',
   },
 ];
 
@@ -55,9 +55,9 @@ export function MidValueBanner() {
             </div>
 
             <h2 className="font-heading text-xl sm:text-2xl md:text-[2rem] lg:text-[2.2rem] font-black tracking-tight text-zinc-950 dark:text-white leading-[1.05]">
-              Built for developers.
+              Built on standards.
               <br />
-              Loved by users.
+              Operated by you.
             </h2>
           </div>
 

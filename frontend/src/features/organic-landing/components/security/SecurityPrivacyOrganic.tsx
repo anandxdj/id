@@ -8,23 +8,23 @@ import { ClayLock3D } from '../common/ClayLock3D';
 export const SECURITY_FEATURES = [
   {
     icon: ShieldCheck,
-    title: 'End-to-end security',
-    desc: 'Best practices, always.',
+    title: 'Protected authorization flow',
+    desc: 'PKCE, exact redirect matching, and single-use codes.',
   },
   {
     icon: Zap,
-    title: 'Users own their data',
-    desc: 'Export or delete anytime.',
+    title: 'Signed identity tokens',
+    desc: 'RS256 signatures with discoverable public keys.',
   },
   {
     icon: Target,
-    title: 'High availability',
-    desc: '99.99% uptime and counting.',
+    title: 'Revocable live access',
+    desc: 'Disconnecting an app invalidates its active tokens.',
   },
   {
     icon: GitFork,
-    title: 'Open source',
-    desc: 'Transparent and community driven.',
+    title: 'Inspectable and self-hosted',
+    desc: 'The source, data stores, and deployment stay under your control.',
   },
 ];
 
@@ -57,12 +57,12 @@ export function SecurityPrivacyOrganic() {
           {/* Middle Column: Headline & Subtitle */}
           <div className="lg:col-span-4 space-y-2.5">
             <h2 className="font-heading text-xl sm:text-2xl md:text-3xl lg:text-[2.2rem] font-black tracking-tight text-zinc-50 dark:text-zinc-950 leading-[1.05]">
-              Security. Privacy.
+              Secure by protocol.
               <br />
-              Performance.
+              Controlled by you.
             </h2>
             <p className="text-xs sm:text-[13px] text-zinc-300 dark:text-zinc-600 font-normal leading-relaxed max-w-sm">
-              ID gives you all the tools you need to manage identity securely while giving users full control over their data.
+              ID centralizes sign-in without hiding how access works. Applications get verified tokens; users keep visibility and control.
             </p>
           </div>
 

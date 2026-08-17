@@ -18,50 +18,50 @@ import { TiltCard, MagneticButton } from '@/components/ui/gooey';
 export const CONSOLE_ITEMS = [
   {
     id: 'dashboard',
-    title: 'Dashboard',
-    desc: 'Analytics and insights at a glance',
+    title: 'Account overview',
+    desc: 'See your identity and access at a glance',
     icon: LayoutGrid,
   },
   {
-    id: 'projects',
-    title: 'Projects',
-    desc: 'Manage and ship your projects',
+    id: 'apps',
+    title: 'Connected apps',
+    desc: 'Review and revoke granted application access',
     icon: Folder,
   },
   {
-    id: 'billing',
-    title: 'Billing',
-    desc: 'Manage subscriptions and invoices',
+    id: 'sessions',
+    title: 'Active sessions',
+    desc: 'Review devices and sign out remote sessions',
     icon: CreditCard,
   },
   {
     id: 'api',
-    title: 'API Console',
-    desc: 'Test and explore our APIs',
+    title: 'OIDC endpoints',
+    desc: 'Discover authorization, token, JWKS, and userinfo',
     icon: Code,
   },
   {
-    id: 'docs',
-    title: 'Docs',
-    desc: 'Guides and documentation',
+    id: 'profile',
+    title: 'Profile claims',
+    desc: 'Control the details applications may receive',
     icon: BookOpen,
   },
   {
     id: 'users',
-    title: 'Users',
-    desc: 'Manage users and permissions',
+    title: 'User access',
+    desc: 'Disable, reinstate, and review user accounts',
     icon: Users,
   },
   {
-    id: 'settings',
-    title: 'Settings',
-    desc: 'Configure ID to fit your needs',
+    id: 'clients',
+    title: 'OAuth clients',
+    desc: 'Register applications and rotate client secrets',
     icon: Settings,
   },
   {
     id: 'logs',
-    title: 'Logs',
-    desc: 'Monitor and audit system logs',
+    title: 'Activity log',
+    desc: 'Trace sign-ins, grants, and administrative actions',
     icon: List,
   },
 ];
@@ -96,18 +96,18 @@ export function AppsConsoleOrganic({ onExplore, onCardClick }: AppsConsoleOrgani
           <div className="lg:col-span-4 space-y-2.5">
             <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-white/10 border border-white/15 dark:bg-black/5 dark:border-black/10 select-none w-fit transition-transform duration-200 hover:scale-105">
               <span className="text-[10.5px] sm:text-xs font-semibold text-zinc-100 dark:text-zinc-900">
-                All in one access
+                One identity service
               </span>
             </div>
 
             <h2 className="font-heading text-xl sm:text-2xl md:text-[2.2rem] lg:text-[2.4rem] font-black tracking-tight text-zinc-50 dark:text-zinc-950 leading-[1.04]">
-              One account.
+              One account for
               <br />
-              Access all your apps.
+              every internal app.
             </h2>
 
             <p className="text-xs sm:text-[13px] text-zinc-300 dark:text-zinc-600 font-normal leading-relaxed max-w-sm">
-              Sign in once with ID and access all your tools and applications seamlessly.
+              Sign in once, review what each app can access, and manage every active session from one place.
             </p>
 
             <div className="pt-0.5">
@@ -117,7 +117,7 @@ export function AppsConsoleOrganic({ onExplore, onCardClick }: AppsConsoleOrgani
                   onClick={onExplore}
                   className="cursor-pointer inline-flex items-center gap-2 px-4.5 sm:px-5 py-2 sm:py-2.5 rounded-full bg-white text-zinc-950 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-white dark:hover:bg-zinc-800 font-semibold text-xs sm:text-sm shadow-md transition-all duration-150 active:scale-95"
                 >
-                  <span>Explore all apps</span>
+                  <span>View account tools</span>
                   <ArrowUpRight className="size-3.5 sm:size-4" />
                 </button>
               </MagneticButton>

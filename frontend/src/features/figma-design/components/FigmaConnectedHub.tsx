@@ -46,13 +46,13 @@ const HUB_SLOTS: HubCardSlot[] = [
     delay: 0,
     user: {
       icon: ShieldCheck,
-      title: 'Passkey Protected',
-      desc: 'FIDO2 biometric sign-in without passwords.',
+      title: 'Secure sign-in',
+      desc: 'Use your password or an enabled social provider.',
     },
     dev: {
       icon: Shield,
-      title: 'Secure',
-      desc: 'Enterprise-grade RS256 & PKCE encryption.',
+      title: 'Signed tokens',
+      desc: 'RS256 ID tokens with published verification keys.',
     },
   },
   {
@@ -63,13 +63,13 @@ const HUB_SLOTS: HubCardSlot[] = [
     delay: 0.1,
     user: {
       icon: Zap,
-      title: '1-Click Sign-In',
-      desc: 'Instant, seamless access across all apps.',
+      title: 'One session',
+      desc: 'Move between connected apps without signing in again.',
     },
     dev: {
       icon: Zap,
-      title: 'Fast',
-      desc: 'Sub-10ms token issuance & high throughput.',
+      title: 'PKCE flow',
+      desc: 'Authorization Code with S256 proof key validation.',
     },
   },
   {
@@ -80,13 +80,13 @@ const HUB_SLOTS: HubCardSlot[] = [
     delay: 0.2,
     user: {
       icon: Unlock,
-      title: 'No Lock-In',
-      desc: 'Take your identity anywhere freely.',
+      title: 'App access',
+      desc: 'See and revoke every application you have authorized.',
     },
     dev: {
       icon: Box,
-      title: 'Open Standards',
-      desc: 'Full OpenID Connect & OAuth 2.1 compliance.',
+      title: 'OpenID discovery',
+      desc: 'Standard metadata, JWKS, token, and userinfo endpoints.',
     },
   },
   {
@@ -97,13 +97,13 @@ const HUB_SLOTS: HubCardSlot[] = [
     delay: 0.15,
     user: {
       icon: UserCheck,
-      title: 'Granular Consent',
-      desc: 'Revoke app permissions anytime in 1 click.',
+      title: 'Scoped consent',
+      desc: 'Approve profile and email access before data is shared.',
     },
     dev: {
       icon: User,
-      title: 'User Data Ownership',
-      desc: 'Self-hosted with zero external telemetry.',
+      title: 'Scoped claims',
+      desc: 'Return only the profile claims an application requested.',
     },
   },
   {
@@ -114,13 +114,13 @@ const HUB_SLOTS: HubCardSlot[] = [
     delay: 0.25,
     user: {
       icon: Lock,
-      title: 'Always Secure',
-      desc: 'End-to-end encrypted identity safeguards.',
+      title: 'Session control',
+      desc: 'Review devices and sign out sessions you do not recognize.',
     },
     dev: {
       icon: Database,
-      title: 'Reliable',
-      desc: 'Built to scale stateless session architecture.',
+      title: 'Self-hosted state',
+      desc: 'Keep users in MongoDB and live sessions in Redis.',
     },
   },
 ];

@@ -8,11 +8,11 @@ import { MagneticButton } from '@/components/ui/gooey';
 export const FIGMA_TESTIMONIALS_DATA = [
   {
     id: '1',
-    badge: 'Leader in security',
+    badge: 'Standards first',
     quote:
-      'ID gave us an enterprise-grade SSO without vendor lock-in. Setup took less than a day.',
-    author: 'Sarah Chen',
-    role: 'CTO @ CloudScale',
+      'Applications integrate through OIDC discovery, standard authorization endpoints, and published signing keys.',
+    author: 'OpenID Connect',
+    role: 'Discovery metadata + JWKS',
     viewBox: '0 0 240 120',
     // Distinct Organic Fluid Squircle 1: Soft top-left organic flair, gentle continuous bezier curves
     svgPath:
@@ -23,11 +23,11 @@ export const FIGMA_TESTIMONIALS_DATA = [
   },
   {
     id: '2',
-    badge: 'Fast & Reliable',
+    badge: 'Explicit consent',
     quote:
-      'The documentation is incredible. We were up and running in an hour.',
-    author: 'James Wilson',
-    role: 'Lead Engineer, Acme Inc',
+      'Users see the requested scopes before granting access and can revoke a connected application later.',
+    author: 'Account controls',
+    role: 'Scoped profile and email claims',
     viewBox: '0 0 240 120',
     // Distinct Organic Fluid Squircle 2: Centered fluid squircle with subtle organic waist
     svgPath:
@@ -38,11 +38,11 @@ export const FIGMA_TESTIMONIALS_DATA = [
   },
   {
     id: '3',
-    badge: 'Privacy First',
+    badge: 'Central operations',
     quote:
-      'Security, flexibility, and performance—ID checks all the boxes.',
-    author: 'Priya Patel',
-    role: 'Director, VoxPay',
+      'Operators manage users and OAuth clients centrally instead of rebuilding authentication inside every app.',
+    author: 'Admin controls',
+    role: 'Users, clients, secrets, and activity',
     viewBox: '0 0 240 120',
     // Distinct Organic Fluid Squircle 3: Fluid asymmetric curvature with smooth organic base
     svgPath:

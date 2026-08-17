@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import Link from 'next/link';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -41,36 +43,92 @@ interface PortalHeaderProps {
 
 export function PortalHeader({ mode, onModeChange }: PortalHeaderProps) {
   const { user, logout } = useAuth();
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const scrollFrameRef = useRef<number | null>(null);
+  const prefersReducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    const updateActiveSection = () => {
+      const headerHeight = headerRef.current?.offsetHeight ?? 0;
+      const marker = headerHeight + Math.min(window.innerHeight * 0.24, 180);
+      let current: string | null = null;
+
+      for (const link of NAV_LINKS) {
+        const section = document.querySelector<HTMLElement>(link.href);
+        if (!section) continue;
+        const rect = section.getBoundingClientRect();
+        if (rect.top <= marker && rect.bottom > headerHeight + 24) current = link.href;
+      }
+
+      setActiveSection(current);
+    };
+
+    updateActiveSection();
+    window.addEventListener('scroll', updateActiveSection, { passive: true });
+    window.addEventListener('resize', updateActiveSection);
+    return () => {
+      window.removeEventListener('scroll', updateActiveSection);
+      window.removeEventListener('resize', updateActiveSection);
+      if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
+    };
+  }, []);
+
+  const scrollToSection = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+    const section = document.querySelector<HTMLElement>(href);
+    if (!section) return;
+
+    event.preventDefault();
+    if (scrollFrameRef.current !== null) cancelAnimationFrame(scrollFrameRef.current);
+
+    const headerHeight = headerRef.current?.offsetHeight ?? 0;
+    const start = window.scrollY;
+    const destination = Math.max(0, section.getBoundingClientRect().top + start - headerHeight - 16);
+
+    if (prefersReducedMotion) {
+      window.scrollTo({ top: destination });
+      window.history.replaceState(null, '', href);
+      setActiveSection(href);
+      return;
+    }
+
+    let startedAt: number | null = null;
+    const duration = 720;
+    const animateScroll = (now: number) => {
+      startedAt ??= now;
+      const progress = Math.min((now - startedAt) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 4);
+      window.scrollTo(0, start + (destination - start) * eased);
+
+      if (progress < 1) {
+        scrollFrameRef.current = requestAnimationFrame(animateScroll);
+      } else {
+        scrollFrameRef.current = null;
+        window.history.replaceState(null, '', href);
+        setActiveSection(href);
+      }
+    };
+
+    scrollFrameRef.current = requestAnimationFrame(animateScroll);
+  };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border/30 bg-background/95 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-2 sm:px-6 sm:py-2.5">
+    <header ref={headerRef} className="sticky top-0 z-50 border-b border-border/40 bg-background/90 shadow-[0_10px_30px_-24px_rgba(0,0,0,0.7)] backdrop-blur-xl">
+      <div className="relative mx-auto max-w-7xl px-3 py-2 sm:px-6 sm:py-2.5">
+        <div className="flex items-center justify-between gap-3">
         {/* Brand Logo with Magnetic Interaction */}
-        <div className="flex items-center gap-6 lg:gap-8">
+        <div className="flex shrink-0 items-center">
           <MagneticButton strength={0.15}>
             <Link href="/" className="select-none flex items-center">
               <Logo size={34} />
             </Link>
           </MagneticButton>
-
-          {/* Quick Anchor Navigation (Hidden on small mobile) */}
-          <nav className="hidden md:flex items-center gap-6">
-            {NAV_LINKS.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="text-xs font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground"
-              >
-                {link.label}
-              </a>
-            ))}
-          </nav>
         </div>
 
         {/* Action Controls, Socials & Mode Switcher */}
         <div className="flex min-w-0 items-center gap-1.5 sm:gap-3.5">
           {/* Social Links (GitHub & Twitter / X) */}
-          <div className="hidden items-center gap-2 sm:flex">
+          <div className="hidden items-center gap-2 xl:flex">
             <MagneticButton strength={0.2}>
               <a
                 href="https://github.com/anandxdj/id"
@@ -101,7 +159,7 @@ export function PortalHeader({ mode, onModeChange }: PortalHeaderProps) {
             </MagneticButton>
           </div>
 
-          <div className="h-4 w-px bg-border/60 hidden sm:block" />
+          <div className="hidden h-4 w-px bg-border/60 xl:block" />
 
           {/* Sliding mode toggle in navbar */}
           <div className="relative hidden h-7 w-24 select-none items-center rounded-full border border-border bg-secondary/80 p-0.5 font-mono text-[9px] font-bold shadow-sm min-[380px]:flex">
@@ -140,7 +198,7 @@ export function PortalHeader({ mode, onModeChange }: PortalHeaderProps) {
                   </Button>
                 </Link>
               </MagneticButton>
-              <Button size="sm" variant="ghost" className="h-8 text-xs hidden sm:inline-flex" onClick={() => logout()}>
+              <Button size="sm" variant="ghost" className="hidden h-8 text-xs xl:inline-flex" onClick={() => logout()}>
                 Sign out
               </Button>
             </div>
@@ -148,12 +206,43 @@ export function PortalHeader({ mode, onModeChange }: PortalHeaderProps) {
             <MagneticButton strength={0.22}>
               <Link href="/login">
                 <Button size="sm" className="h-8 rounded-full bg-foreground px-2.5 font-heading text-[11px] font-bold text-background transition-colors duration-300 hover:bg-foreground/90 sm:px-3.5 sm:text-xs">
-                  Get Started
+                  Sign in
                 </Button>
               </Link>
             </MagneticButton>
           )}
         </div>
+        </div>
+
+        <nav
+          aria-label="Landing page sections"
+          className="mt-2 grid grid-cols-4 rounded-full border border-border/60 bg-secondary/70 p-1 shadow-sm md:absolute md:left-1/2 md:top-1/2 md:mt-0 md:flex md:-translate-x-1/2 md:-translate-y-1/2 md:items-center"
+        >
+          {NAV_LINKS.map((link) => {
+            const active = activeSection === link.href;
+            return (
+              <motion.a
+                key={link.label}
+                href={link.href}
+                onClick={(event) => scrollToSection(event, link.href)}
+                whileTap={prefersReducedMotion ? undefined : { scale: 0.94 }}
+                aria-current={active ? 'location' : undefined}
+                className={`relative flex h-8 items-center justify-center rounded-full px-2.5 font-mono text-[10px] font-bold uppercase tracking-wide outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-3 md:h-7 md:text-[9px] ${
+                  active ? 'text-background' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {active ? (
+                  <motion.span
+                    layoutId="landing-nav-active"
+                    className="absolute inset-0 rounded-full bg-foreground shadow-sm"
+                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                  />
+                ) : null}
+                <span className="relative z-10">{link.label}</span>
+              </motion.a>
+            );
+          })}
+        </nav>
       </div>
     </header>
   );
