@@ -1,6 +1,6 @@
 # id — Frontend
 
-Next.js 15 (App Router) · React 19 · Tailwind v4. Feature-based layout. Houses every user-facing
+Next.js 16 (App Router) · React 19 · Tailwind v4. Feature-based layout. Houses every user-facing
 surface of the OIDC provider behind a single **brutalist design system**.
 
 ## Surfaces
@@ -8,9 +8,10 @@ surface of the OIDC provider behind a single **brutalist design system**.
 | Route group | Surface | Intensity |
 |-------------|---------|-----------|
 | `/` | Landing page — hero, animated OIDC-handshake terminal, feature grid | loud |
-| `(auth)` | `/login`, `/consent`, `/callback` | loud |
-| `(account)` | `/account` + `/account/{apps,security,profile}` — Google-style self-service | structural |
+| `(auth)` | `/login`, `/register`, `/consent`, `/callback`, `/forgot-password`, `/reset-password`, `/verify-email` | loud |
+| `(account)` | `/account` + `/account/{apps,security,profile,danger}` — Google-style self-service | structural |
 | `(admin)` | `/admin` + users / apps (role-gated) | structural |
+| `/design` | Figma-based landing design reference | dev/reference |
 
 `/` is a real landing page (it does **not** redirect to `/account`). `(account)` is behind
 `authenticate` only — any signed-in user; `(admin)` additionally requires an admin role
@@ -71,7 +72,7 @@ pnpm dev                         # http://localhost:3000
 Real `(account)` / `(admin)` data needs the backend running (see ../README.md). Without it those
 pages sit on `LOADING…`.
 
-> `/preview` is a dev-only styleguide route rendering every primitive — **delete before shipping**.
+> `/preview` and `/design` are development/reference routes and should be reviewed before shipping.
 
 ## Layout
 

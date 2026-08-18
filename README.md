@@ -1,7 +1,8 @@
 # id — Internal OIDC Provider
 
 Self-hosted **OpenID Connect** provider for universal SSO across internal projects.
-Authorization Code + PKCE, discovery, JWKS, RS256 ID tokens, userinfo, and a consent screen.
+Authorization Code + PKCE, discovery, JWKS, RS256 ID tokens, userinfo, consent, revocation,
+introspection, and RP-initiated logout.
 
 - **backend/** — TypeScript · Express · Mongoose (MongoDB) · ioredis (Redis) · node-jose
 - **frontend/** — Next.js (App Router), feature-based · Tailwind v4 · landing, auth, user dashboard &
@@ -34,8 +35,8 @@ to a subset. This is the per-deployment toggle — no code change to turn a prov
 | Email/password | always on (`credentials`) |
 
 Redirect/callback URLs to register with the provider:
-- Google: `http://localhost:4000/api/auth/oauth/google/callback`
-- GitHub: `http://localhost:4000/api/auth/oauth/github/callback`
+- Google: `http://localhost:4000/api/v1/auth/oauth/google/callback`
+- GitHub: `http://localhost:4000/api/v1/auth/oauth/github/callback`
 
 **User model:** one canonical `User` (email-unique) with many linked `Identity` records
 (`provider` + `providerAccountId`). A social login links to an existing user **only when the
@@ -46,14 +47,17 @@ Connector endpoints:
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /api/auth/connectors` | List enabled providers (UI renders a button per entry) |
-| `GET /api/auth/oauth/:provider` | Start social login (→ provider consent) |
-| `GET /api/auth/oauth/:provider/callback` | Finish → find/create user → session → bridge to frontend |
+| `GET /api/v1/auth/connectors` | List enabled providers (UI renders a button per entry) |
+| `GET /api/v1/auth/oauth/:provider` | Start social login (→ provider consent) |
+| `GET /api/v1/auth/oauth/:provider/callback` | Finish → find/create user → session → bridge to frontend |
 
 ## Prerequisites
 
 - Node 22, pnpm 10
-- Docker (for MongoDB + Redis): `docker compose up -d` (from repo root)
+- MongoDB (a replica set for local development) and Redis
+- Docker is used by the current Compose file for the production/VPS backend deployment;
+  it does not start MongoDB or Redis locally. The deployed stack uses MongoDB Atlas and
+  an existing Redis container on the VPS.
 
 ## Backend
 
@@ -61,8 +65,7 @@ Connector endpoints:
 cd backend
 cp .env.example .env            # set JWT secrets, SEED_ADMIN_*, OIDC_ISSUER
 pnpm install
-pnpm db:up                      # mongo + redis via ../docker-compose.yml
-pnpm oidc:generate-keys         # RSA signing key → cert/private-key.pem (prod; dev uses an ephemeral key)
+pnpm oidc:generate-keys         # optional: generate cert/private-key.pem for a persistent signing key
 pnpm seed:admin                 # create the admin user from SEED_ADMIN_*
 pnpm seed:clients               # register internal apps (edit scripts/seed-clients.ts)
 pnpm dev                        # http://localhost:4000
@@ -77,10 +80,16 @@ Key endpoints:
 | `GET /oauth/authorize` | Start Authorization Code + PKCE flow |
 | `POST /oauth/token` | Exchange code for tokens |
 | `GET /oauth/userinfo` | Claims for a Bearer access token |
-| `POST /api/auth/{register,login,logout,refresh-token}`, `GET /api/auth/me` | First-party session |
-| `GET /api/oauth/consent/context`, `POST /api/oauth/consent` | Consent screen backend |
-| `GET/DELETE /api/me/apps[/:clientId]`, `GET/DELETE /api/me/sessions[/:sid]`, `GET/PATCH /api/me/profile` | User self-service (dashboard) |
-| `GET /api/admin/{users,metrics,activity,clients}`, `POST /api/admin/clients` (+ rotate/suspend) | Admin panel (role-gated) |
+| `POST /api/v1/auth/{register,login,logout,refresh-token}`, `GET /api/v1/auth/me` | First-party session |
+| `POST/GET /api/v1/auth/{verify-email,forgot-password,reset-password}` | Email verification and password recovery |
+| `GET /api/v1/auth/connectors`, `GET /api/v1/auth/oauth/:provider[(/callback)]` | Social login connectors |
+| `GET /api/v1/oauth/consent/context`, `POST /api/v1/oauth/consent` | Consent screen backend |
+| `GET/DELETE /api/v1/me/apps[/:clientId]`, `GET/DELETE /api/v1/me/sessions[/:sid]`, `GET/PATCH /api/v1/me/profile`, `DELETE /api/v1/me` | User self-service (dashboard) |
+| `GET /api/v1/admin/{users,metrics,activity,clients}`, `POST/PATCH/DELETE /api/v1/admin/clients` (+ rotate/suspend) | Admin panel (role-gated) |
+
+The versioned `/api/v1` paths are canonical. The backend also keeps `/api` as a temporary
+legacy alias. OIDC protocol endpoints remain unversioned under `/oauth` as required by the
+discovery document. `/health` is the liveness probe and `/ready` checks database readiness.
 
 ## Dashboards (v2)
 
@@ -96,7 +105,7 @@ store** (Mongo, TTL-bounded via `EVENT_RETENTION_DAYS`) written at every auth ch
   relying-party repo to wire the OIDC client automatically. The prompt carries a
   `{{CLIENT_SECRET}}` placeholder only; the real secret is revealed separately.
 
-See `docs/plans/2026-06-14-002-*` for the v2 implementation plan.
+See `docs/plans/` for the implementation history and completed feature plans.
 
 Tests: `pnpm test` (unit tests always run; integration tests require Mongo+Redis and self-skip otherwise).
 
@@ -110,7 +119,8 @@ pnpm install
 pnpm dev                        # http://localhost:3000
 ```
 
-`/` is a brutalist landing page; `/login` + `/consent` are the auth surfaces; `/account` and
+`/` is a brutalist landing page. Auth surfaces include `/login`, `/register`, `/consent`,
+`/callback`, `/forgot-password`, `/reset-password`, and `/verify-email`; `/account` and
 `/admin` are the dashboards. UI design system (one-line accent swap, tokens, theming) is documented
 in **[frontend/README.md](frontend/README.md)**.
 
