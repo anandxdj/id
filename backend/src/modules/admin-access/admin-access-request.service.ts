@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { ApiError } from '../../common/utils/ApiError';
-import { REVOKE_REASONS, USER_ROLES } from '../../common/constants/index.constants';
+import { PAGINATION, REVOKE_REASONS, USER_ROLES } from '../../common/constants/index.constants';
 import * as authService from '../auth/auth.service';
 import { UserStore } from '../auth/user.store';
 import User from '../auth/auth.model';
@@ -50,13 +50,29 @@ export const create = async (userId: string, justification: string, ctx: Request
   return view(request);
 };
 
-export const listForAdmin = async (status: AdminAccessRequestStatus) => {
-  const rows = await AdminAccessRequest.find({ status })
-    .sort({ createdAt: -1 })
+export const listForAdmin = async ({
+  status,
+  page = PAGINATION.DEFAULT_PAGE,
+  limit = PAGINATION.DEFAULT_LIMIT,
+}: {
+  status: AdminAccessRequestStatus;
+  page?: number;
+  limit?: number;
+}) => {
+  const lim = Math.min(Math.max(limit, 1), PAGINATION.MAX_LIMIT);
+  const pg = Math.max(page, PAGINATION.DEFAULT_PAGE);
+  const filter = { status };
+  const [rows, total] = await Promise.all([
+    AdminAccessRequest.find(filter)
+    .sort({ createdAt: -1, _id: -1 })
+    .skip((pg - 1) * lim)
+    .limit(lim)
     .populate('userId', 'name email role disabled deletedAt')
-    .populate('decidedBy', 'name email');
+    .populate('decidedBy', 'name email'),
+    AdminAccessRequest.countDocuments(filter),
+  ]);
 
-  return rows.map((request) => {
+  const items = rows.map((request) => {
     const populated = request.toObject() as unknown as {
       _id: mongoose.Types.ObjectId;
       userId: { _id: mongoose.Types.ObjectId; name: string; email: string; role: string; disabled: boolean; deletedAt?: Date };
@@ -91,6 +107,7 @@ export const listForAdmin = async (status: AdminAccessRequestStatus) => {
       updatedAt: populated.updatedAt,
     };
   });
+  return { items, total, page: pg, limit: lim };
 };
 
 export const decide = async (requestId: string, input: AdminAccessDecisionInput, ctx: DecisionContext) => {

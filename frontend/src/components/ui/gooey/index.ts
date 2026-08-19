@@ -8,3 +8,5 @@ export { GooeyCard } from './GooeyCard';
 export { LivingCursor } from './LivingCursor';
 export { MagneticButton } from './MagneticButton';
 export { TiltCard } from './TiltCard';
+export { GooeySpeedDial } from './GooeySpeedDial';
+export type { GooeySpeedDialItem } from './GooeySpeedDial';

@@ -11,7 +11,11 @@ import type {
   AdminClientDetail,
   AdminAccessQueueRequest,
   AdminAccessRequestStatus,
+  CursorPage,
+  OffsetPage,
 } from '@/types';
+
+export const ADMIN_PAGE_SIZE = 15;
 
 export const AdminApi = {
   async listUsers(params: { search?: string; page?: number; limit?: number; after?: string } = {}) {
@@ -23,7 +27,7 @@ export const AdminApi = {
     const qs = q.toString();
     return (
       await apiClient.get<
-        ApiEnvelope<{ items: AdminUser[]; total: number; page: number; limit: number; nextCursor: string | null }>
+        ApiEnvelope<OffsetPage<AdminUser> & { nextCursor: string | null }>
       >(`${API_PATHS.ADMIN_USERS}${qs ? `?${qs}` : ''}`)
     ).data;
   },
@@ -48,20 +52,37 @@ export const AdminApi = {
     return (await apiClient.get<ApiEnvelope<AdminMetrics>>(API_PATHS.ADMIN_METRICS)).data;
   },
 
-  async getActivity(params: { type?: string; clientId?: string; userId?: string; limit?: number } = {}) {
+  async getActivity(params: {
+    type?: string;
+    clientId?: string;
+    userId?: string;
+    limit?: number;
+    after?: string;
+    before?: string;
+  } = {}) {
     const q = new URLSearchParams();
     if (params.type) q.set('type', params.type);
     if (params.clientId) q.set('clientId', params.clientId);
     if (params.userId) q.set('userId', params.userId);
     if (params.limit) q.set('limit', String(params.limit));
+    if (params.after) q.set('after', params.after);
+    if (params.before) q.set('before', params.before);
     const qs = q.toString();
     return (
-      await apiClient.get<ApiEnvelope<ActivityEvent[]>>(`${API_PATHS.ADMIN_ACTIVITY}${qs ? `?${qs}` : ''}`)
+      await apiClient.get<ApiEnvelope<CursorPage<ActivityEvent>>>(`${API_PATHS.ADMIN_ACTIVITY}${qs ? `?${qs}` : ''}`)
     ).data;
   },
 
-  async listClients() {
-    return (await apiClient.get<ApiEnvelope<AdminClient[]>>(API_PATHS.ADMIN_CLIENTS)).data;
+  async listClients(params: { page?: number; limit?: number } = {}) {
+    const q = new URLSearchParams();
+    if (params.page) q.set('page', String(params.page));
+    if (params.limit) q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return (
+      await apiClient.get<ApiEnvelope<OffsetPage<AdminClient>>>(
+        `${API_PATHS.ADMIN_CLIENTS}${qs ? `?${qs}` : ''}`,
+      )
+    ).data;
   },
 
   async getClient(clientId: string) {
@@ -116,10 +137,18 @@ export const AdminApi = {
     ).data.prompt;
   },
 
-  async listAdminAccessRequests(status: AdminAccessRequestStatus = 'pending') {
+  async listAdminAccessRequests(params: {
+    status?: AdminAccessRequestStatus;
+    page?: number;
+    limit?: number;
+  } = {}) {
+    const q = new URLSearchParams();
+    q.set('status', params.status ?? 'pending');
+    if (params.page) q.set('page', String(params.page));
+    if (params.limit) q.set('limit', String(params.limit));
     return (
-      await apiClient.get<ApiEnvelope<AdminAccessQueueRequest[]>>(
-        `${API_PATHS.ADMIN_ACCESS_REQUEST_QUEUE}?status=${encodeURIComponent(status)}`,
+      await apiClient.get<ApiEnvelope<OffsetPage<AdminAccessQueueRequest>>>(
+        `${API_PATHS.ADMIN_ACCESS_REQUEST_QUEUE}?${q.toString()}`,
       )
     ).data;
   },

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Terminal, X } from 'lucide-react';
+import { GooeySpeedDial } from '@/components/ui/gooey';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { PortalHeader } from '@/features/landing/components/PortalHeader';
 import { AppEcosystem } from '@/features/landing/components/AppEcosystem';
@@ -161,6 +162,7 @@ export default function LandingPage() {
 
         <FooterOrganic />
       </main>
+      <GooeySpeedDial />
     </div>
   );
 }

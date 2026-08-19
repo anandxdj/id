@@ -93,6 +93,31 @@ test('query() filters by type and returns newest-first within the limit', async 
   assert.equal(typeof all.nextCursor === 'string' || all.nextCursor === null, true);
 });
 
+test('query() can move to an older page and back without overlap', async (t) => {
+  if (!available) return t.skip('Mongo not reachable');
+  const actorUserId = new mongoose.Types.ObjectId().toString();
+  for (let index = 0; index < 5; index += 1) {
+    await events.record('login.success', { actorUserId, ua: TAG, meta: { index } });
+  }
+
+  const first = await events.query({ actorUserId, limit: 2 });
+  assert.ok(first.nextCursor);
+  assert.equal(first.previousCursor, null);
+
+  const second = await events.query({ actorUserId, limit: 2, after: first.nextCursor! });
+  assert.ok(second.previousCursor);
+  assert.equal(
+    first.items.some((item) => second.items.some((other) => String(other._id) === String(item._id))),
+    false,
+  );
+
+  const returned = await events.query({ actorUserId, limit: 2, before: second.previousCursor! });
+  assert.deepEqual(
+    returned.items.map((item) => String(item._id)),
+    first.items.map((item) => String(item._id)),
+  );
+});
+
 test('lastUsedByClient() returns the latest touch per client', async (t) => {
   if (!available) return t.skip('Mongo not reachable');
   const actorUserId = new mongoose.Types.ObjectId().toString();

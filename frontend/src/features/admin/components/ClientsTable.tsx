@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import * as adminApi from '@/features/admin/services/adminApi';
+import { ADMIN_PAGE_SIZE } from '@/features/admin/services/adminApi';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
+import { Pagination } from '@/components/ui/pagination';
 import { SecretRevealOnce } from '@/features/admin/components/SecretRevealOnce';
 import { timeAgo } from '@/lib/utils';
 import type { AdminClient } from '@/types';
@@ -14,7 +16,11 @@ import { AlertTriangle, KeyRound } from 'lucide-react';
 
 export function ClientsTable() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const rawPage = Number(searchParams.get('page'));
+  const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
   const [clients, setClients] = useState<AdminClient[] | null>(null);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [rotated, setRotated] = useState<{ clientId: string; secret: string } | null>(null);
@@ -25,10 +31,36 @@ export function ClientsTable() {
   const [suspendReason, setSuspendReason] = useState('');
   const [suspendConfirmText, setSuspendConfirmText] = useState('');
 
-  const load = () => adminApi.listClients().then(setClients).catch((e) => setError(e.message));
+  const setPage = useCallback((value: number, replace = false) => {
+    const query = new URLSearchParams(searchParams.toString());
+    if (value > 1) query.set('page', String(value));
+    else query.delete('page');
+    const href = `/admin/apps?${query.toString()}`;
+    if (replace) router.replace(href);
+    else router.push(href);
+  }, [router, searchParams]);
+
+  const load = useCallback(async () => {
+    await Promise.resolve();
+    setClients(null);
+    setError('');
+    try {
+      const result = await adminApi.listClients({ page, limit: ADMIN_PAGE_SIZE });
+      if (result.items.length === 0 && result.total > 0 && page > 1) {
+        setPage(page - 1, true);
+        return;
+      }
+      setClients(result.items);
+      setTotal(result.total);
+    } catch {
+      setError('Apps could not be loaded.');
+    }
+  }, [page, setPage]);
+
   useEffect(() => {
-    load();
-  }, []);
+    const timer = setTimeout(() => void load(), 0);
+    return () => clearTimeout(timer);
+  }, [load]);
 
   async function executeRotate() {
     if (!rotateTarget) return;
@@ -124,6 +156,18 @@ export function ClientsTable() {
           </li>
         ))}
       </ul>
+
+      <Pagination
+        page={page}
+        pageSize={ADMIN_PAGE_SIZE}
+        count={clients.length}
+        total={total}
+        hasPrevious={page > 1}
+        hasNext={page * ADMIN_PAGE_SIZE < total}
+        onPrevious={() => setPage(page - 1)}
+        onNext={() => setPage(page + 1)}
+        noun="apps"
+      />
 
       {/* Rotate Secret Modal */}
       <Modal

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FIELD_LIMITS, OBJECT_ID } from '../../common/constants/index.constants';
+import { FIELD_LIMITS, OBJECT_ID, PAGINATION } from '../../common/constants/index.constants';
 import { ADMIN_ACCESS_REQUEST_STATUS } from './admin-access-request.model';
 
 export const createAdminAccessRequestSchema = z.object({
@@ -24,6 +24,8 @@ export const listAdminAccessRequestsSchema = z.object({
     ])
     .optional()
     .default(ADMIN_ACCESS_REQUEST_STATUS.PENDING),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(PAGINATION.MAX_LIMIT).optional(),
 });
 
 export type AdminAccessDecisionInput = z.infer<typeof decideAdminAccessRequestSchema>;

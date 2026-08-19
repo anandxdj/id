@@ -50,6 +50,8 @@ export interface EventQuery {
   limit?: number;
   /** Keyset cursor: the `_id` of the last row from the previous page. */
   after?: string;
+  /** Reverse keyset cursor: the `_id` of the first row on the following page. */
+  before?: string;
 }
 
 export interface EventPage {
@@ -66,6 +68,7 @@ export interface EventPage {
     meta?: Record<string, unknown>;
   }>;
   nextCursor: string | null;
+  previousCursor: string | null;
 }
 
 /** Read the activity log, newest-first. Capped; keyset via `after`, never OFFSET. */
@@ -83,18 +86,26 @@ export const query = async (f: EventQuery = {}): Promise<EventPage> => {
   }
   if (f.after && OBJECT_ID.PATTERN.test(f.after)) {
     filter._id = { $lt: toObjectId(f.after) };
+  } else if (f.before && OBJECT_ID.PATTERN.test(f.before)) {
+    filter._id = { $gt: toObjectId(f.before) };
   }
   const lim = Math.min(Math.max(f.limit ?? PAGINATION.DEFAULT_LIMIT, 1), PAGINATION.ACTIVITY_MAX_LIMIT);
+  const movingNewer = Boolean(f.before);
   const rows = await AuthEvent.find(filter)
-    .sort({ createdAt: -1, _id: -1 })
+    .sort({ _id: movingNewer ? 1 : -1 })
     .limit(lim + 1)
     .lean();
   const hasMore = rows.length > lim;
-  const items = hasMore ? rows.slice(0, lim) : rows;
+  const pageRows = hasMore ? rows.slice(0, lim) : rows;
+  const items = movingNewer ? pageRows.reverse() : pageRows;
+  const first = items[0];
   const last = items[items.length - 1];
+  const hasNewer = movingNewer ? hasMore : Boolean(f.after && items.length);
+  const hasOlder = movingNewer ? Boolean(items.length) : hasMore;
   return {
     items: items as EventPage['items'],
-    nextCursor: hasMore && last ? String(last._id) : null,
+    nextCursor: hasOlder && last ? String(last._id) : null,
+    previousCursor: hasNewer && first ? String(first._id) : null,
   };
 };
 

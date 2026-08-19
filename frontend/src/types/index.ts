@@ -15,6 +15,19 @@ export interface ApiEnvelope<T> {
   data: T;
 }
 
+export interface OffsetPage<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface CursorPage<T> {
+  items: T[];
+  nextCursor: string | null;
+  previousCursor: string | null;
+}
+
 export interface ConsentContext {
   transaction_id: string;
   client_id: string;

@@ -56,7 +56,11 @@ export const changeUserRole = async (req: Request, res: Response) => {
 };
 
 export const listAdminAccessRequests = async (req: Request, res: Response) => {
-  const data = await adminAccessService.listForAdmin(req.query.status as AdminAccessRequestStatus);
+  const data = await adminAccessService.listForAdmin({
+    status: req.query.status as AdminAccessRequestStatus,
+    page: int(req.query.page, PAGINATION.DEFAULT_PAGE),
+    limit: int(req.query.limit, PAGINATION.DEFAULT_LIMIT),
+  });
   ApiResponse.ok(res, 'Admin access requests', data);
 };
 
@@ -78,15 +82,17 @@ export const activity = async (req: Request, res: Response) => {
     actorUserId: str(req.query.userId),
     limit: int(req.query.limit, PAGINATION.ACTIVITY_DEFAULT_LIMIT),
     after: str(req.query.after),
+    before: str(req.query.before),
   });
-  // Array-shaped for the existing admin UI; cursor is additive so a client that
-  // does not keyset-paginate still works.
-  ApiResponse.ok(res, 'Activity', page.items);
+  ApiResponse.ok(res, 'Activity', page);
 };
 
 // ── Clients ──────────────────────────────────────────────────────────────────────
-export const listClients = async (_req: Request, res: Response) => {
-  ApiResponse.ok(res, 'Clients', await adminService.listClients());
+export const listClients = async (req: Request, res: Response) => {
+  ApiResponse.ok(res, 'Clients', await adminService.listClients({
+    page: int(req.query.page, PAGINATION.DEFAULT_PAGE),
+    limit: int(req.query.limit, PAGINATION.DEFAULT_LIMIT),
+  }));
 };
 
 export const getClient = async (req: Request, res: Response) => {

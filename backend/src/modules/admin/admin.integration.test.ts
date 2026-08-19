@@ -125,7 +125,20 @@ after(async () => {
     await Session.deleteMany({ userId: { $in: users.map((u) => u._id) } });
     await AdminAccessRequest.deleteMany({ userId: { $in: users.map((u) => u._id) } });
     await User.deleteMany({ email: { $in: emails } });
-    await OAuthClient.deleteMany({ clientName: { $in: ['Admin Made', 'Native Guide', 'Rotate Me', 'Suspend Me', 'Admin Details App'] } });
+    await OAuthClient.deleteMany({
+      clientName: {
+        $in: [
+          'Admin Made',
+          'Native Guide',
+          'Rotate Me',
+          'Suspend Me',
+          'Admin Details App',
+          'Pagination One',
+          'Pagination Two',
+          'Pagination Three',
+        ],
+      },
+    });
     await mongoose.disconnect();
     await disconnectRedis();
   }
@@ -137,6 +150,32 @@ test('non-admin is rejected from every admin route', async (t) => {
   assert.equal((await as(userToken)('/api/admin/metrics')).status, 403);
   assert.equal((await as('')('/api/admin/users')).status, 401);
   assert.equal((await as(adminToken)('/api/admin/users')).status, 200);
+});
+
+test('admin collection endpoints validate and return paginated shapes', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+
+  for (const clientName of ['Pagination One', 'Pagination Two', 'Pagination Three']) {
+    await as(adminToken)('/api/admin/clients', {
+      method: 'POST',
+      body: JSON.stringify({ clientName, redirectUris: [REDIRECT] }),
+    });
+  }
+
+  const first = await jsonOf<{
+    data: { items: Array<{ clientId: string }>; total: number; page: number; limit: number };
+  }>(await as(adminToken)('/api/admin/clients?page=1&limit=2'));
+  const second = await jsonOf<{
+    data: { items: Array<{ clientId: string }>; total: number; page: number; limit: number };
+  }>(await as(adminToken)('/api/admin/clients?page=2&limit=2'));
+
+  assert.equal(first.data.items.length, 2);
+  assert.equal(first.data.page, 1);
+  assert.equal(first.data.limit, 2);
+  assert.ok(first.data.total >= 3);
+  assert.equal(first.data.items.some((item) => second.data.items.some((other) => other.clientId === item.clientId)), false);
+  assert.equal((await as(adminToken)('/api/admin/clients?page=0')).status, 400);
+  assert.equal((await as(adminToken)('/api/admin/activity?after=507f1f77bcf86cd799439011&before=507f191e810c19729de860ea')).status, 400);
 });
 
 test('create client returns a one-time secret + a placeholder-only config-prompt', async (t) => {
@@ -459,11 +498,12 @@ test('a user can request admin access and only a superadmin can approve it', asy
   const mongoose = (await import('mongoose')).default;
   const hello = await mongoose.connection.db?.admin().command({ hello: 1 });
   if (!hello?.setName) return t.skip('Approval requires the documented replica-set Mongo deployment');
-  const queue = await jsonOf<{ data: Array<{ id: string }> }>(
+  const queue = await jsonOf<{ data: { items: Array<{ id: string }>; total: number; page: number; limit: number } }>(
     await as(superToken)('/api/admin/admin-access-requests'),
   );
-  assert.equal(queue.data.length, 1);
-  const approved = await as(superToken)(`/api/admin/admin-access-requests/${queue.data[0]!.id}`, {
+  assert.equal(queue.data.items.length, 1);
+  assert.equal(queue.data.total, 1);
+  const approved = await as(superToken)(`/api/admin/admin-access-requests/${queue.data.items[0]!.id}`, {
     method: 'PATCH',
     body: JSON.stringify({ decision: 'approved', note: 'Approved for maintenance.' }),
   });
@@ -471,4 +511,32 @@ test('a user can request admin access and only a superadmin can approve it', asy
   const { User } = await import('../auth/auth.model');
   assert.equal((await User.findOne({ email: USER.email }))?.role, 'admin');
   assert.equal((await as(userToken)('/api/me/admin-access-requests')).status, 401);
+});
+
+test('superadmin request history is paginated within the selected status', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+  const { User } = await import('../auth/auth.model');
+  const { AdminAccessRequest } = await import('../admin-access/admin-access-request.model');
+  const victim = await User.findOne({ email: VICTIM.email });
+  assert.ok(victim);
+  await AdminAccessRequest.insertMany(
+    Array.from({ length: 17 }, (_, index) => ({
+      userId: victim!._id,
+      justification: `Pagination request ${index + 1}`,
+      status: 'rejected',
+      decisionNote: 'Fixture decision',
+      decidedAt: new Date(),
+    })),
+  );
+
+  const first = await jsonOf<{ data: { items: unknown[]; total: number; page: number; limit: number } }>(
+    await as(superToken)('/api/admin/admin-access-requests?status=rejected&page=1&limit=15'),
+  );
+  const second = await jsonOf<{ data: { items: unknown[]; total: number; page: number; limit: number } }>(
+    await as(superToken)('/api/admin/admin-access-requests?status=rejected&page=2&limit=15'),
+  );
+  assert.equal(first.data.items.length, 15);
+  assert.equal(second.data.items.length, 2);
+  assert.equal(first.data.total, 17);
+  assert.equal(second.data.page, 2);
 });

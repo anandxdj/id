@@ -7,7 +7,7 @@ import { updateClientSchema } from './dto/update-client.schema';
 import { suspendUserSchema } from './dto/suspend-user.schema';
 import { changeRoleSchema } from './dto/change-role.schema';
 import { userIdParamSchema, clientIdParamSchema } from './dto/path-params.schema';
-import { listUsersQuerySchema, activityQuerySchema } from './dto/list-users-query.schema';
+import { listUsersQuerySchema, listClientsQuerySchema, activityQuerySchema } from './dto/list-users-query.schema';
 import * as controller from './admin.controller';
 import {
   adminAccessRequestIdSchema,
@@ -49,7 +49,7 @@ router.get('/metrics', asyncHandler(controller.metrics));
 router.get('/activity', Validate.query(activityQuerySchema), asyncHandler(controller.activity));
 
 // OAuth clients
-router.get('/clients', asyncHandler(controller.listClients));
+router.get('/clients', Validate.query(listClientsQuerySchema), asyncHandler(controller.listClients));
 router.get('/clients/:clientId', clientId, asyncHandler(controller.getClient));
 router.post('/clients', validate(createClientSchema), asyncHandler(controller.createClient));
 router.patch('/clients/:clientId', clientId, validate(updateClientSchema), asyncHandler(controller.updateClient));

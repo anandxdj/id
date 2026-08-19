@@ -211,12 +211,14 @@ export const activity = ({
   actorUserId,
   limit,
   after,
+  before,
 }: {
   type?: EventType | EventType[];
   clientId?: string;
   actorUserId?: string;
   limit?: number;
   after?: string;
+  before?: string;
 }) =>
   events.query({
     type,
@@ -224,6 +226,7 @@ export const activity = ({
     actorUserId,
     limit: limit ?? PAGINATION.ACTIVITY_DEFAULT_LIMIT,
     after,
+    before,
   });
 
 // ── OAuth clients ──────────────────────────────────────────────────────────────
@@ -252,7 +255,16 @@ const toAdminClient = (c: IOAuthClient) => {
   };
 };
 
-export const listClients = async () => (await clientService.list()).map(toAdminClient);
+export const listClients = async ({
+  page = PAGINATION.DEFAULT_PAGE,
+  limit = PAGINATION.DEFAULT_LIMIT,
+}: {
+  page?: number;
+  limit?: number;
+}) => {
+  const result = await clientService.listPage({ page, limit });
+  return { ...result, items: result.items.map(toAdminClient) };
+};
 
 /** Create a client and return its one-time secret + a ready-to-paste config-prompt. */
 export const createClient = async (input: CreateClientInput, ctx: AdminActionCtx) => {

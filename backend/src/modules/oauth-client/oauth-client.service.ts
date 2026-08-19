@@ -1,6 +1,6 @@
 import { randomBase64Url } from '../../common/utils/crypto.utils';
 import { ClientSecretUtil } from '../../common/utils/clientSecret.utils';
-import { CLIENT_ID, TOKEN_ENDPOINT_AUTH_METHODS } from '../../common/constants/index.constants';
+import { CLIENT_ID, PAGINATION, TOKEN_ENDPOINT_AUTH_METHODS } from '../../common/constants/index.constants';
 import { Logger } from '../../common/logger/index.logger';
 import OAuthClient from './oauth-client.model';
 import type { IOAuthClient } from './oauth-client.model';
@@ -142,6 +142,21 @@ export const upgradeSecretDigest = async (
 /** List all registered clients, newest first (admin view). Never includes secrets. */
 export const list = async (): Promise<IOAuthClient[]> =>
   OAuthClient.find().sort({ createdAt: -1 }).lean<IOAuthClient[]>();
+
+/** Paginated admin listing. Protocol consumers continue to use the unbounded `list`. */
+export const listPage = async ({ page, limit }: { page: number; limit: number }) => {
+  const lim = Math.min(Math.max(limit, 1), PAGINATION.MAX_LIMIT);
+  const pg = Math.max(page, PAGINATION.DEFAULT_PAGE);
+  const [items, total] = await Promise.all([
+    OAuthClient.find()
+      .sort({ createdAt: -1, _id: -1 })
+      .skip((pg - 1) * lim)
+      .limit(lim)
+      .lean<IOAuthClient[]>(),
+    OAuthClient.countDocuments(),
+  ]);
+  return { items, total, page: pg, limit: lim };
+};
 
 export interface UpdateClientInput extends ClientProtocolMetadata {
   clientName?: string;

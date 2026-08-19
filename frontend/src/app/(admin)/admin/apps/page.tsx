@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { ClientsTable } from '@/features/admin/components/ClientsTable';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,9 @@ export default function AdminAppsPage() {
           </Link>
         }
       />
-      <ClientsTable />
+      <Suspense fallback={<p className="eyebrow text-muted-foreground">LOADING...</p>}>
+        <ClientsTable />
+      </Suspense>
     </section>
   );
 }
