@@ -9,6 +9,8 @@ import type {
   ActivityEvent,
   CreatedClient,
   AdminClientDetail,
+  AdminAccessQueueRequest,
+  AdminAccessRequestStatus,
 } from '@/types';
 
 export const AdminApi = {
@@ -113,6 +115,23 @@ export const AdminApi = {
       )
     ).data.prompt;
   },
+
+  async listAdminAccessRequests(status: AdminAccessRequestStatus = 'pending') {
+    return (
+      await apiClient.get<ApiEnvelope<AdminAccessQueueRequest[]>>(
+        `${API_PATHS.ADMIN_ACCESS_REQUEST_QUEUE}?status=${encodeURIComponent(status)}`,
+      )
+    ).data;
+  },
+
+  async decideAdminAccessRequest(id: string, decision: 'approved' | 'rejected', note?: string) {
+    return (
+      await apiClient.patch<ApiEnvelope<AdminAccessQueueRequest>>(API_PATHS.adminAccessRequest(id), {
+        decision,
+        note,
+      })
+    ).data;
+  },
 };
 
 export const listUsers = AdminApi.listUsers;
@@ -130,4 +149,5 @@ export const setClientSuspended = AdminApi.setClientSuspended;
 export const deleteClient = AdminApi.deleteClient;
 export const changeUserRole = AdminApi.changeUserRole;
 export const getConfigPrompt = AdminApi.getConfigPrompt;
-
+export const listAdminAccessRequests = AdminApi.listAdminAccessRequests;
+export const decideAdminAccessRequest = AdminApi.decideAdminAccessRequest;

@@ -3,24 +3,27 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, Link2, ShieldCheck, User, AlertTriangle } from 'lucide-react';
+import { LayoutDashboard, Link2, ShieldCheck, User, AlertTriangle, ShieldPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 
 const tabs = [
   { href: '/account', label: 'Overview', icon: LayoutDashboard },
   { href: '/account/apps', label: 'Connected apps', icon: Link2 },
   { href: '/account/security', label: 'Security', icon: ShieldCheck },
   { href: '/account/profile', label: 'Profile', icon: User },
+  { href: '/account/admin-access', label: 'Admin access', icon: ShieldPlus, usersOnly: true },
   { href: '/account/danger', label: 'Danger Zone', icon: AlertTriangle, isDanger: true },
 ];
 
 export function AccountNav() {
   const path = usePathname();
+  const { user } = useAuth();
 
   return (
     <div className="relative border-b border-border">
       <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth">
-        {tabs.map((t) => {
+        {tabs.filter((t) => !t.usersOnly || user?.role === 'user').map((t) => {
           const active = path === t.href;
           const Icon = t.icon;
           return (
@@ -70,4 +73,3 @@ export function AccountNav() {
     </div>
   );
 }
-

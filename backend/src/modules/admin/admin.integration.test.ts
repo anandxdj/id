@@ -119,9 +119,11 @@ after(async () => {
     const { User } = await import('../auth/auth.model');
     const { OAuthClient } = await import('../oauth-client/oauth-client.model');
     const { Session } = await import('../auth/session.model');
+    const { AdminAccessRequest } = await import('../admin-access/admin-access-request.model');
     const emails = [ADMIN.email, SUPER.email, USER.email, VICTIM.email, TOMBSTONE.email];
     const users = await User.find({ email: { $in: emails } }).select('_id');
     await Session.deleteMany({ userId: { $in: users.map((u) => u._id) } });
+    await AdminAccessRequest.deleteMany({ userId: { $in: users.map((u) => u._id) } });
     await User.deleteMany({ email: { $in: emails } });
     await OAuthClient.deleteMany({ clientName: { $in: ['Admin Made', 'Native Guide', 'Rotate Me', 'Suspend Me', 'Admin Details App'] } });
     await mongoose.disconnect();
@@ -441,4 +443,32 @@ test('listUsers hides closed accounts and does not count them in metrics', async
 
   const detail = await as(adminToken)(`/api/admin/users/${gone._id}`);
   assert.equal(detail.status, 404);
+});
+
+test('a user can request admin access and only a superadmin can approve it', async (t) => {
+  if (!available) return t.skip('Mongo/Redis not reachable');
+  const created = await as(userToken)('/api/me/admin-access-requests', {
+    method: 'POST',
+    body: JSON.stringify({ justification: 'I maintain the identity service.' }),
+  });
+  assert.equal(created.status, 201);
+  assert.equal((await as(userToken)('/api/me/admin-access-requests', {
+    method: 'POST', body: JSON.stringify({}),
+  })).status, 409);
+  assert.equal((await as(adminToken)('/api/admin/admin-access-requests')).status, 403);
+  const mongoose = (await import('mongoose')).default;
+  const hello = await mongoose.connection.db?.admin().command({ hello: 1 });
+  if (!hello?.setName) return t.skip('Approval requires the documented replica-set Mongo deployment');
+  const queue = await jsonOf<{ data: Array<{ id: string }> }>(
+    await as(superToken)('/api/admin/admin-access-requests'),
+  );
+  assert.equal(queue.data.length, 1);
+  const approved = await as(superToken)(`/api/admin/admin-access-requests/${queue.data[0]!.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ decision: 'approved', note: 'Approved for maintenance.' }),
+  });
+  assert.equal(approved.status, 200);
+  const { User } = await import('../auth/auth.model');
+  assert.equal((await User.findOne({ email: USER.email }))?.role, 'admin');
+  assert.equal((await as(userToken)('/api/me/admin-access-requests')).status, 401);
 });

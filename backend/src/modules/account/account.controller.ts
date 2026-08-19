@@ -5,6 +5,7 @@ import { Logger } from '../../common/logger/index.logger';
 import { COOKIE_NAMES, SUCCESS_MESSAGES } from '../../common/constants/index.constants';
 import { reqContext } from '../events/event.service';
 import * as accountService from './account.service';
+import * as adminAccessService from '../admin-access/admin-access-request.service';
 
 const requireUser = (req: Request) => {
   if (!req.user) throw ApiError.unauthorized('Not authenticated');
@@ -52,6 +53,20 @@ export const updateProfile = async (req: Request, res: Response) => {
   const user = requireUser(req);
   const profile = await accountService.updateProfile(user.id, req.body);
   ApiResponse.ok(res, 'Profile updated', profile);
+};
+
+export const listAdminAccessRequests = async (req: Request, res: Response) => {
+  const user = requireUser(req);
+  ApiResponse.ok(res, 'Admin access requests', await adminAccessService.listOwn(user.id));
+};
+
+export const createAdminAccessRequest = async (req: Request, res: Response) => {
+  const user = requireUser(req);
+  const data = await adminAccessService.create(user.id, req.body.justification, {
+    actorRole: user.role,
+    ...reqContext(req),
+  });
+  ApiResponse.created(res, 'Admin access requested', data);
 };
 
 /**

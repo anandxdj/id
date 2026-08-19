@@ -24,6 +24,7 @@ import { OAuthAccessToken } from '../oauth/oauth-access-token.model';
 import AuthEvent from '../events/event.model';
 import type { CreateClientInput } from './dto/create-client.schema';
 import type { UpdateClientInput } from './dto/update-client.schema';
+import * as adminAccessService from '../admin-access/admin-access-request.service';
 
 /** Context for an admin-performed action (the admin is the actor; a user/client is the target). */
 export type AdminActionCtx = Pick<EventContext, 'actorUserId' | 'actorRole' | 'ip' | 'ua'>;
@@ -177,6 +178,9 @@ export const changeUserRole = async (id: string, role: UserRole, ctx: AdminActio
     ctx,
   );
   events.record('admin.user.role_changed', { ...ctx, targetUserId: id, meta: { role, ...revoked } });
+  if (role !== existing.role && role !== 'user') {
+    await adminAccessService.resolvePendingPromotion(id, ctx.actorUserId!);
+  }
   return toAdminUser(user);
 };
 
@@ -408,5 +412,3 @@ export const deleteClient = async (clientId: string, ctx: AdminActionCtx) => {
 
   return { clientId, clientName: client.clientName };
 };
-
-

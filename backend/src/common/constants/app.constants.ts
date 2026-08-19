@@ -168,6 +168,7 @@ export const COLLECTIONS = {
   CONSENT: 'OAuthConsent',
   OAUTH_CLIENT: 'OAuthClient',
   AUTH_EVENT: 'AuthEvent',
+  ADMIN_ACCESS_REQUEST: 'AdminAccessRequest',
   SESSION: 'Session',
   OAUTH_STATE: 'OAuthState',
   OAUTH_AUTH_REQUEST: 'OAuthAuthRequest',
@@ -497,6 +498,8 @@ export const UV_THREADPOOL_MIN_FOR_ARGON2 = 8;
 
 // ── Field caps ────────────────────────────────────────────────────────────────
 export const FIELD_LIMITS = {
+  ADMIN_ACCESS_JUSTIFICATION: 500,
+  ADMIN_ACCESS_DECISION_NOTE: 500,
   USER_AGENT: 400,
   IP_ADDRESS: 45,
   DEVICE_NAME: 200,

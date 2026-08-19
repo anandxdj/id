@@ -61,6 +61,9 @@ export const EVENT_TYPES = [
   'admin.user.unsuspended',
   /** A role was reassigned, which revokes every session the target holds. (M3) */
   'admin.user.role_changed',
+  'admin.access.requested',
+  'admin.access.approved',
+  'admin.access.rejected',
   'admin.client.created',
   'admin.client.updated',
   'admin.client.secret_rotated',

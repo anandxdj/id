@@ -13,6 +13,9 @@ const cards = [
 
 export default function AccountOverviewPage() {
   const { user } = useAuth();
+  const visibleCards = user?.role === 'user'
+    ? [...cards, { href: '/account/admin-access', n: '05', title: 'Admin access', desc: 'Request administrator access and track the decision.' }]
+    : cards;
   return (
     <div className="space-y-8">
       <SectionHeading
@@ -21,7 +24,7 @@ export default function AccountOverviewPage() {
         description="Manage your id account and what it can access."
       />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map((c) => (
+        {visibleCards.map((c) => (
           <Link
             key={c.href}
             href={c.href}

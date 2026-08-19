@@ -9,6 +9,11 @@ import { changeRoleSchema } from './dto/change-role.schema';
 import { userIdParamSchema, clientIdParamSchema } from './dto/path-params.schema';
 import { listUsersQuerySchema, activityQuerySchema } from './dto/list-users-query.schema';
 import * as controller from './admin.controller';
+import {
+  adminAccessRequestIdSchema,
+  decideAdminAccessRequestSchema,
+  listAdminAccessRequestsSchema,
+} from '../admin-access/admin-access-request.schemas';
 
 const router = Router();
 
@@ -24,6 +29,20 @@ router.get('/users/:id', userId, asyncHandler(controller.getUser));
 router.post('/users/:id/suspend', userId, validate(suspendUserSchema), asyncHandler(controller.suspendUser));
 router.post('/users/:id/unsuspend', userId, asyncHandler(controller.unsuspendUser));
 router.patch('/users/:id/role', userId, validate(changeRoleSchema), asyncHandler(controller.changeUserRole));
+
+router.get(
+  '/admin-access-requests',
+  authorize('superadmin'),
+  Validate.query(listAdminAccessRequestsSchema),
+  asyncHandler(controller.listAdminAccessRequests),
+);
+router.patch(
+  '/admin-access-requests/:id',
+  authorize('superadmin'),
+  Validate.params(adminAccessRequestIdSchema),
+  validate(decideAdminAccessRequestSchema),
+  asyncHandler(controller.decideAdminAccessRequest),
+);
 
 // Monitoring
 router.get('/metrics', asyncHandler(controller.metrics));

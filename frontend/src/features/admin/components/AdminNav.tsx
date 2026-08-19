@@ -3,22 +3,25 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, Users, Layers } from 'lucide-react';
+import { LayoutDashboard, Users, Layers, ShieldQuestion } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 
 const tabs = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/admin/users', label: 'Users', icon: Users, exact: false },
   { href: '/admin/apps', label: 'Apps', icon: Layers, exact: false },
+  { href: '/admin/requests', label: 'Requests', icon: ShieldQuestion, exact: false, superadminOnly: true },
 ];
 
 export function AdminNav() {
   const path = usePathname();
+  const { user } = useAuth();
 
   return (
     <div className="relative border-b border-border">
       <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth">
-        {tabs.map((t) => {
+        {tabs.filter((t) => !t.superadminOnly || user?.role === 'superadmin').map((t) => {
           const active = t.exact ? path === t.href : path.startsWith(t.href);
           const Icon = t.icon;
           return (
@@ -55,4 +58,3 @@ export function AdminNav() {
     </div>
   );
 }
-

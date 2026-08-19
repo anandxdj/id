@@ -3,6 +3,7 @@ import { asyncHandler } from '../../common/utils/asyncHandler';
 import { validate } from '../../common/middleware/validate.middleware';
 import { authenticate } from '../auth/auth.middleware';
 import { profileSchema } from './dto/profile.schema';
+import { createAdminAccessRequestSchema } from '../admin-access/admin-access-request.schemas';
 import * as controller from './account.controller';
 
 const router = Router();
@@ -19,6 +20,13 @@ router.delete('/sessions/:sid', asyncHandler(controller.revokeSession));
 
 router.get('/profile', asyncHandler(controller.getProfile));
 router.patch('/profile', validate(profileSchema), asyncHandler(controller.updateProfile));
+
+router.get('/admin-access-requests', asyncHandler(controller.listAdminAccessRequests));
+router.post(
+  '/admin-access-requests',
+  validate(createAdminAccessRequestSchema),
+  asyncHandler(controller.createAdminAccessRequest),
+);
 
 // Close the caller's own account. `DELETE /api/v1/me` — the resource *is* the caller, so
 // there is no path parameter and therefore no way to aim it at somebody else.

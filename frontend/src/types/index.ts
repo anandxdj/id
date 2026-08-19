@@ -59,6 +59,32 @@ export interface ProfileData {
   country: string;
 }
 
+export type AdminAccessRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface AdminAccessRequest {
+  id: string;
+  userId: string;
+  justification: string;
+  status: AdminAccessRequestStatus;
+  decidedBy: string | null;
+  decisionNote: string;
+  decidedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminAccessQueueRequest extends Omit<AdminAccessRequest, 'userId' | 'decidedBy'> {
+  requester: {
+    id: string;
+    name: string;
+    email: string;
+    role: User['role'];
+    disabled: boolean;
+    deleted: boolean;
+  } | null;
+  decidedBy: { id: string; name: string; email: string } | null;
+}
+
 // ── Admin panel (mirrors /api/admin responses) ────────────────────────────────
 export interface AdminUser {
   id: string;
@@ -151,4 +177,3 @@ export interface AdminClientDetail {
   activity: ActivityEvent[];
   configPrompt: string;
 }
-

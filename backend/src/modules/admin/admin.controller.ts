@@ -6,8 +6,10 @@ import { reqContext } from '../events/event.service';
 import type { EventType } from '../events/event.types';
 import * as adminService from './admin.service';
 import type { AdminActionCtx } from './admin.service';
+import * as adminAccessService from '../admin-access/admin-access-request.service';
+import type { AdminAccessRequestStatus } from '../admin-access/admin-access-request.model';
 
-const adminCtx = (req: Request): AdminActionCtx => {
+const adminCtx = (req: Request): AdminActionCtx & { actorUserId: string } => {
   if (!req.user) throw ApiError.unauthorized('Not authenticated');
   return { actorUserId: req.user.id, actorRole: req.user.role, ...reqContext(req) };
 };
@@ -51,6 +53,16 @@ export const changeUserRole = async (req: Request, res: Response) => {
   } catch (error) {
     throw error;
   }
+};
+
+export const listAdminAccessRequests = async (req: Request, res: Response) => {
+  const data = await adminAccessService.listForAdmin(req.query.status as AdminAccessRequestStatus);
+  ApiResponse.ok(res, 'Admin access requests', data);
+};
+
+export const decideAdminAccessRequest = async (req: Request, res: Response) => {
+  const data = await adminAccessService.decide(req.params.id!, req.body, adminCtx(req));
+  ApiResponse.ok(res, `Admin access request ${req.body.decision}`, data);
 };
 
 // ── Metrics + activity ───────────────────────────────────────────────────────────

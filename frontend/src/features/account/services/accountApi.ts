@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/api-client';
 import { API_PATHS } from '@/lib/constants';
-import type { ApiEnvelope, AuthorizedApp, SessionView, ProfileData } from '@/types';
+import type { ApiEnvelope, AuthorizedApp, SessionView, ProfileData, AdminAccessRequest } from '@/types';
 
 export const AccountApi = {
   async listApps() {
@@ -36,6 +36,16 @@ export const AccountApi = {
   async deleteAccount() {
     return (await apiClient.del<ApiEnvelope<{ sessionsRevoked: number }>>(API_PATHS.ACCOUNT)).data;
   },
+
+  async listAdminAccessRequests() {
+    return (await apiClient.get<ApiEnvelope<AdminAccessRequest[]>>(API_PATHS.ADMIN_ACCESS_REQUESTS)).data;
+  },
+
+  async createAdminAccessRequest(justification?: string) {
+    return (
+      await apiClient.post<ApiEnvelope<AdminAccessRequest>>(API_PATHS.ADMIN_ACCESS_REQUESTS, { justification })
+    ).data;
+  },
 };
 
 export const listApps = AccountApi.listApps;
@@ -46,3 +56,5 @@ export const revokeAllSessions = AccountApi.revokeAllSessions;
 export const getProfile = AccountApi.getProfile;
 export const updateProfile = AccountApi.updateProfile;
 export const deleteAccount = AccountApi.deleteAccount;
+export const listAdminAccessRequests = AccountApi.listAdminAccessRequests;
+export const createAdminAccessRequest = AccountApi.createAdminAccessRequest;
